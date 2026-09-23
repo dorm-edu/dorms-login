@@ -2,7 +2,11 @@ import Link from "next/link";
 
 /** 도름스 로그인이 거절되거나 실패했을 때 오는 화면. 메시지는 도름스가 보낸 사람 말 그대로 보여 준다. */
 export default async function DormsDeniedPage({ searchParams }: { searchParams: Promise<{ error?: string; error_description?: string; reason?: string }> }) {
-  const { error, error_description: description, reason } = await searchParams;
+  const { error, error_description: rawDescription, reason } = await searchParams;
+  // 주소창으로 누구나 넣을 수 있는 글이라 길이를 자르고 제어문자를 지운 뒤, 정해진 오류 코드일 때만 보여 준다.
+  const description = typeof rawDescription === "string" && ["access_denied", "unauthorized_client", "invalid_scope"].includes(error ?? "")
+    ? rawDescription.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, 160) || null
+    : null;
   const message =
     description
     ?? (reason === "teacher" ? "이 사이트는 교사 인증을 마친 도름스 회원만 들어갈 수 있어요."
