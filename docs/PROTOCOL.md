@@ -1,80 +1,75 @@
-# DoRms로 로그인 HTTP 계약 (모든 스택용)
+# DoRms login HTTP contract v0.2.0
 
-Next.js App Router 가 아닌 사이트는 이 문서대로 붙입니다. 표준 OAuth 2.1 인가코드 + PKCE(S256) 흐름이고, OpenID 검색 문서가 있어 `openid-client`·Auth.js 같은 라이브러리가 자동으로 설정합니다. **클라이언트 시크릿은 없습니다.** 되돌아올 주소 정확 일치와 PKCE 가 결속을 맡습니다.
+This contract describes authorization code + PKCE (S256), discovery, an ID token, and userinfo. It implements the core OIDC login flow used here; it does not promise every OIDC feature or automatic compatibility with every OIDC library. There is no client secret. Register a site as a verified teacher at https://dorms.school/connect.
 
-## 주소
+## Endpoints
 
-| 무엇 | 주소 |
+| Purpose | URL |
 |---|---|
-| 검색 문서 | `https://dorms.school/.well-known/openid-configuration` |
-| 로그인 시작 | `GET https://dorms.school/api/sso/authorize` |
-| 토큰 교환 | `POST https://dorms.school/api/sso/token` (JSON 또는 form) |
-| 회원 정보 재조회 | `GET https://dorms.school/api/sso/userinfo` (`Authorization: Bearer`) |
-| 공개키 | `https://dorms.school/api/sso/jwks` (EdDSA · Ed25519) |
+| Discovery | `https://dorms.school/.well-known/openid-configuration` |
+| Current client configuration | `GET https://dorms.school/api/sso/clients/<client_id>/configuration?redirect_uri=<URL-encoded registered callback>` |
+| Authorization | `GET https://dorms.school/api/sso/authorize` |
+| Token exchange | `POST https://dorms.school/api/sso/token` |
+| Current permission/profile | `GET https://dorms.school/api/sso/userinfo` |
+| Public keys | `https://dorms.school/api/sso/jwks` |
 
-사이트 id(`client_id`)와 되돌아올 주소는 도름스 https://dorms.school/connect 에서 받습니다. 되돌아올 주소는 기본적으로 `<사이트 주소>/api/auth/dorms/callback` 과 `http://localhost:3000/api/auth/dorms/callback` 두 개가 등록되고, 고급 설정에서 바꿀 수 있습니다.
+Keep these provider addresses fixed. The development-only `DORMS_API_ORIGIN_DEV` in the Next template accepts a localhost origin and is ignored in production.
 
-## 1. 로그인 시작
+## Before each login
 
-브라우저를 아래 주소로 보냅니다(302). 값은 서버에서 만들고 `state`·`code_verifier`·`nonce` 는 httpOnly 쿠키(10분)에 둡니다.
+Fetch the configuration endpoint with the exact callback URL. A registered, active site returns `{ "active": true, "scopes": ["openid", "profile"] }`, optionally including `"email"`. An invalid callback or inactive site is refused. The response is `no-store`; fetch it again for each login so email settings are current. Do not copy scopes or provider policy into installed code.
 
-```
-https://dorms.school/api/sso/authorize
-  ?response_type=code
-  &client_id=<사이트 id>
-  &redirect_uri=<등록한 되돌아올 주소, 정확히 같아야 함>
-  &scope=openid profile            (이메일까지 켠 사이트만 "openid profile email")
-  &state=<무작위 43자 이상>
-  &nonce=<무작위>
-  &code_challenge=<BASE64URL(SHA256(code_verifier))>
-  &code_challenge_method=S256
-```
+Automatic installation supports a root HTTPS origin such as `https://example.com`, with callback `https://example.com/api/auth/dorms/callback`. `http://localhost:3000/api/auth/dorms/callback` is registered for local development. Other local ports require exact registration. The CLI rejects deployment subpaths/basePath; another stack or path layout requires a manual integration and an explicitly registered callback.
 
-도름스가 회원을 로그인시키고(처음이면 동의 화면), 문(교사 인증·도름 수)을 확인한 뒤 되돌아올 주소로 보냅니다.
+## Authorization
 
-- 성공: `?code=<2분 일회용 코드>&state=<보낸 state>`
-- 거절: `?error=access_denied&error_description=<사람 말 설명>&state=<보낸 state>` (회원이 취소했거나 문에 안 맞음)
-- 사이트 잠김: `error=unauthorized_client`, 허용 안 된 scope: `error=invalid_scope`
+Generate independent random `state`, `nonce`, and `code_verifier` values with at least 32 bytes of entropy. Keep them in an httpOnly, SameSite=Lax flow cookie for at most 10 minutes, with Secure enabled in production. The Next template uses bounded base64url JSON with a creation time, not delimiter-separated fields.
 
-## 2. 토큰 교환 (서버에서)
+Redirect the browser to the authorization endpoint with:
 
-```
-POST https://dorms.school/api/sso/token
-Content-Type: application/json
-{ "grant_type": "authorization_code", "code": "...", "code_verifier": "...", "client_id": "<사이트 id>", "redirect_uri": "<1단계와 같은 주소>" }
+```text
+response_type=code
+client_id=<registered UUID>
+redirect_uri=<exact registered callback>
+scope=<current configuration scopes, space separated>
+state=<random base64url>
+nonce=<random base64url>
+code_challenge=<base64url SHA-256 of code_verifier>
+code_challenge_method=S256
 ```
 
-응답:
+DoRms authenticates the member, obtains consent, checks current policy and sends `code` and `state` to the registered callback. The code expires in two minutes and can be exchanged once. Errors return an OAuth error code with `state` where a safe registered callback is available. Validate state on both success and error; never display an arbitrary `error_description` from a URL.
+
+Only `response_mode=query` is supported. `prompt` (including `none`/`login`), `max_age`, `claims`, `acr_values`, `request`, `request_uri`, `id_token_hint` and `registration` are explicitly rejected rather than silently ignored. These unsupported parameters produce a direct JSON `400 invalid_request` with an explanation, before a safe callback has been established. Configure a general OIDC library to use this supported subset; not every error is delivered by redirect.
+
+## Token exchange
+
+Send JSON or form data from your server:
 
 ```json
-{ "token_type": "Bearer", "id_token": "<EdDSA JWT>", "access_token": "<EdDSA JWT, 10분>", "expires_in": 600, "id_token_expires_in": 604800, "scope": "profile" }
+{ "grant_type": "authorization_code", "code": "...", "code_verifier": "...", "client_id": "...", "redirect_uri": "..." }
 ```
 
-`id_token` 의 클레임: `iss=https://dorms.school`, `aud=<사이트 id>`, `sub`(도름스 회원 id), `name`, `handle`, `picture`, `teacher_verified`(boolean), `dorms`(받은 도름 수), `email`+`email_verified`(허용된 경우만), `nonce`, `iat`, `exp`. 서명은 공개키(JWKS)로 확인하고 `nonce` 가 보낸 값과 같은지 봅니다. 회원을 구분하는 기준은 `sub` 입니다. 이메일은 없을 수 있으니(애플 이메일 가리기 계정 등) 이메일로 계정을 합치지 마세요.
+The callback must exactly match authorization. The response contains `token_type: "Bearer"`, `id_token`, `access_token`, `expires_in`, `id_token_expires_in` and `scope`. Access tokens last 10 minutes; ID tokens default to seven days with a configurable lifetime. Token lifetime does not replace the current-permission check below.
 
-`id_token` 의 수명은 사이트가 도름스 /connect 고급 설정에서 정합니다(기본 7일, 1시간에서 30일). 사이트 세션으로 그대로 써도 됩니다.
+Verify the ID token using JWKS, EdDSA, issuer `https://dorms.school`, your exact client audience, expiration, and required `sub`, `iat`, `exp`, `jti`, `grant_version`. `sub` and `grant_version` are UUIDs. Verify the nonce from your flow cookie. Bind member identity to `sub`, never email. Treat a legacy token without `grant_version` as requiring a new login.
 
-## 3. 회원 정보 재조회 (선택)
+Profile claims include `name`, `handle`, `picture`, `teacher_verified` and `dorms`. Optional `email` and `email_verified` require permission; email may be absent, including for Apple private relay accounts. The template stores the signed ID token in an httpOnly session cookie. Never expose the token in a client component, URL, log or error response.
 
-민감한 동작 전에 지금 상태를 다시 물어봅니다. 교사 인증·도름 수·연결 끊김·사이트 잠금이 즉시 반영됩니다.
+## Every protected request
 
-```
-GET https://dorms.school/api/sso/userinfo
-Authorization: Bearer <access_token 또는 id_token>
-```
+After verifying the local token, call userinfo with `Authorization: Bearer <id_token or access_token>`, without caching. Do this before both protected page rendering and every API/server-action data operation. Userinfo checks the current grant generation, member, site, owner and policy. Confirm the returned `sub` matches the verified token before using the profile.
 
-응답 `{ sub, name, handle, picture, teacher_verified, dorms, email?, email_verified? }`. 회원이 연결을 끊었거나 사이트가 잠기면 401, 문에 안 맞게 됐으면 403.
+The success response is `{ sub, name?, handle?, picture?, teacher_verified, dorms, email?, email_verified? }`. Revoking consent invalidates the grant generation. Re-consenting creates a new generation, so an old token stays invalid even after permission is granted again. Current policy and optional profile data come from this response, not stale token claims. Existing sites need v0.2.0-equivalent server checks; publishing a new tool version cannot retrofit their copied code.
 
-## 오류
-
-| 오류 | 뜻 |
+| Failure reason | Consumer behavior |
 |---|---|
-| `invalid_request` 400 | 파라미터가 빠졌거나 형식이 틀림(PKCE 는 S256 만) |
-| `invalid_client` 400 | 모르는 사이트 id 이거나 등록되지 않은 되돌아올 주소. 도름스는 등록 안 된 주소로는 절대 돌려보내지 않음 |
-| `invalid_grant` 400 | 코드가 만료(2분)·재사용·PKCE 불일치 |
-| `rate_limited` 429 | 잠시 뒤 다시 |
+| `authentication_required` | Missing, expired, invalid or legacy authentication. Ask for a new login. |
+| `access_denied` | Revoked consent, disabled site/owner or unmet current policy. Deny access and show a stable explanation. Do not automatically restart login. |
+| `temporarily_unavailable` | Rate limit, server/network/database failure. Deny the protected operation and invite a later retry. Do not reuse old claims or restart login. |
 
-## 한계 (솔직하게)
+Error bodies include `{ error, reason }`. The SDK maps denied access to 403 and unavailable checks to 503. A 429/5xx/network error is always unavailable. A 401 without a reason is treated as authentication required for older-provider compatibility. API consumers must reject before returning or changing any protected data.
 
-- 브라우저만 있는 사이트(백엔드 없는 SPA)도 PKCE 로 붙을 수 있지만, 그 경우 화면만 가릴 뿐 데이터를 지키지는 못합니다. 지켜야 할 데이터가 있으면 서버에서 `id_token` 을 확인하세요.
-- 회원이 도름스에서 연결을 끊어도 만료 전 `id_token` 은 사이트에 남습니다. 필요하면 수명을 짧게 잡고 `userinfo` 로 재확인하세요.
+## Limits
+
+No refresh-token, single-logout, token introspection or complete OIDC conformance is claimed. Local logout clears this site's session and flow cookies using a same-origin POST; it does not log the member out of DoRms. A browser-only app cannot protect data already shipped to the browser. Put verification on the data-serving backend. Authorization cannot revoke data previously downloaded or retroactively stop an operation already authorized.

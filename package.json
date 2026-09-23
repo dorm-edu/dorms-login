@@ -1,20 +1,63 @@
 {
   "name": "dorms-login",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "선생님이 만든 사이트에 \"DoRms로 로그인\" 버튼을 다는 도구. 도름스(dorms.school) 계정으로 로그인하고, 교사 인증 회원만·몇 도름 이상만 같은 문은 도름스가 지킨다.",
   "type": "module",
   "bin": {
     "dorms-login": "bin/dorms-login.js"
   },
   "scripts": {
-    "selftest": "node --test verify/*.test.mjs"
+    "selftest": "node --test verify/*.test.mjs",
+    "test:build": "node verify/build-app.mjs"
   },
-  "keywords": ["dorms", "login", "oauth", "oidc", "pkce", "nextjs", "korea", "education", "teacher"],
+  "keywords": [
+    "dorms",
+    "login",
+    "oauth",
+    "oidc",
+    "pkce",
+    "nextjs",
+    "korea",
+    "education",
+    "teacher"
+  ],
   "license": "MIT",
   "author": "홍창욱 (Team DoRm)",
-  "repository": { "type": "git", "url": "git+https://github.com/shinnanchanguk/dorms-login.git" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shinnanchanguk/dorms-login.git"
+  },
   "homepage": "https://dorms.school/connect",
-  "bugs": { "url": "https://github.com/shinnanchanguk/dorms-login/issues" },
-  "engines": { "node": ">=18" },
-  "files": ["bin", "templates", "docs", "verify", "LICENSE", "README.md", "README.ko.md", "SKILL.md", "AGENTS.md", "USE-WITH-AI.md", "SECURITY.md"]
+  "bugs": {
+    "url": "https://github.com/shinnanchanguk/dorms-login/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "jose": "^6.2.3",
+    "next": "15.5.26",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "postcss": "8.5.23",
+    "sharp": "0.35.4"
+  },
+  "files": [
+    "bin",
+    "templates",
+    "docs",
+    "verify",
+    "LICENSE",
+    "README.md",
+    "README.ko.md",
+    "SKILL.md",
+    "AGENTS.md",
+    "USE-WITH-AI.md",
+    "SECURITY.md"
+  ]
 }

@@ -2,23 +2,38 @@
 
 English | [한국어](./README.ko.md)
 
-Adds a **"Sign in with DoRms"** button to a teacher-built site. Members sign in with their DoRms (https://dorms.school) account, and access rules such as *verified teachers only* or *at least N dorms* are enforced by DoRms at sign-in time. It works like adding "Sign in with Google".
+Add a **Sign in with DoRms** button to a teacher-built site. Teachers register an application at [DoRms Connect](https://dorms.school/connect), choose who may enter, and paste the generated prompt into their coding assistant.
 
-## Start
+## Install
 
-1. Register the site at https://dorms.school/connect (verified DoRms teachers only). Enter the site URL and choose who may enter.
-2. Copy the prompt shown there into your AI coding tool. It runs:
+```sh
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.2.0.tar.gz detect
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.2.0.tar.gz init --client-id '<site id>' --site 'https://example.com'
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.2.0.tar.gz doctor
+```
 
-~~~bash
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.1.0.tar.gz detect
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.1.0.tar.gz init --client-id <site id> --site https://your-site [--require-teacher] [--min-dorms 10] [--email]
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.1.0.tar.gz doctor
-~~~
+Automatic installation supports Node.js 22+, TypeScript, Next.js 15+ App Router, and sites served from the root of an HTTPS origin. Subpaths/basePath, Pages Router, JavaScript-only projects and browser-only apps need a manual integration using [the HTTP contract](./docs/PROTOCOL.md). Generated `app/` and `src/app/` projects are production-build tested against Next.js 15.5.26. Other framework versions need their own build and integration checks.
 
-`init` adds six files to a Next.js App Router project and two non-secret environment variables (`DORMS_CLIENT_ID`, `DORMS_SITE_URL`). There is no client secret; PKCE and exact redirect URI matching bind the flow. Other stacks: see [docs/PROTOCOL.md](./docs/PROTOCOL.md) (standard OAuth 2.1 authorization code + PKCE with an OpenID discovery document).
+`init` adds six integration files, an installation manifest `.dorms-login.json`, `jose`, and the public environment variables `DORMS_CLIENT_ID` and `DORMS_SITE_URL`. Set the same environment variables on your host. No client secret is used. Existing files are preserved.
 
-## What is shared
+## Protect pages and data
 
-Only what the member allowed on the consent screen: display name, avatar, teacher-verified flag, dorm count, and email only when the site enabled it and the member allowed it. Passwords and DoRms sessions never leave DoRms. Members can disconnect a site at any time.
+Render `DormsLoginButton` on your login page. Use `await requireDormsUser({ next: "/dashboard" })` in protected server-rendered pages. **Also call `getDormsUser()` before reading or writing protected data in every API route and server action.** A login button or page guard alone does not secure a data endpoint. Keep resource ownership checks as well.
 
-Made by Hong Changuk (Team DoRm). [LICENSE](./LICENSE) · [SECURITY.md](./SECURITY.md)
+Every `getDormsUser()`, `requireDormsUser()` and `refreshDormsUser()` call verifies the ID token and checks current permission with DoRms. Do not cache authorization across requests or fall back to old claims if DoRms is unavailable. Disconnection, site suspension and policy changes take effect on the next protected request, including requests made with an already issued token.
+
+`getDormsUser()` and `refreshDormsUser()` return `null` for a missing, expired or legacy session. They throw `DormsAuthError` for denied access (`reason: "access_denied"`, `status: 403`) or an unavailable provider (`reason: "temporarily_unavailable"`, `status: 503`). API handlers must return the corresponding error before accessing data. `requireDormsUser()` starts login only when authentication is needed; denial and outages go to a stable explanation page, without a redirect loop.
+
+Email scope is obtained from the current provider configuration at login. Default policy is enforced by DoRms, not copied into the application. Explicit additional restrictions remain available through `requireDormsUser({ requireTeacher: true, minDorms: 10 })`. Use the stable member `id` for identity, never email. See [the Korean guide](./README.ko.md) for working page, logout and API examples.
+
+## Upgrade existing sites
+
+```sh
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.2.0.tar.gz upgrade
+```
+
+Only unmodified files recorded in the manifest are replaced automatically. Customized or legacy v0.1.0 files remain untouched; new reference files and diffs are written to `.dorms-login/review/`, and the command exits with code `1`. Merge the changes, run type/build checks and actual login/revocation tests, then run `upgrade --accept-reviewed` to record the review. This does not overwrite custom files, and future upgrades continue to preserve them. Publishing a new tool version does not update already installed sites by itself.
+
+DoRms never sends passwords or its own session cookies to your site. Members consent to profile data and optional email. This package implements authorization code + PKCE and a documented core OIDC login flow, not every OIDC feature or universal compatibility with every client library.
+
+[SECURITY.md](./SECURITY.md) · [HTTP contract](./docs/PROTOCOL.md) · [MIT license](./LICENSE)

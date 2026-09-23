@@ -2,14 +2,21 @@ name: selftest
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-      - run: node --test verify/*.test.mjs
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run selftest
+      - run: npm run test:build
       - run: node bin/dorms-login.js help

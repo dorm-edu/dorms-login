@@ -1,16 +1,17 @@
-# AI에게 "DoRms로 로그인" 달기 맡기기
+# AI에게 DoRms 로그인 맡기기
 
-도름스 https://dorms.school/connect 에서 사이트를 등록하면 아래와 같은 프롬프트가 사이트 id·주소·정책이 채워진 채로 나옵니다. 그것을 복사해 AI 도구(클로드 코드·코덱스·커서 등)에 붙여 넣으면 됩니다. 아래는 그 프롬프트의 본보기입니다.
+[도름스에서 사이트를 등록](https://dorms.school/connect)하고 화면의 프롬프트를 복사해 쓰세요. 사이트 id와 주소가 채워져 나옵니다. 다음은 요청에 포함할 내용의 예시입니다.
 
-~~~text
-내 사이트에 "DoRms로 로그인" 버튼을 달아줘. 도름스(dorms.school)는 교사 커뮤니티고, 이 로그인은 구글 로그인처럼 도름스 계정으로 내 사이트에 들어오게 해 주는 기능이야. 이 사이트에 들어올 수 있는 사람: 교사 인증 회원만. 이 기준은 도름스가 로그인 순간에 직접 확인하니까 내 코드가 따로 막지 않아도 돼.
+```text
+내 사이트에 DoRms로 로그인 버튼을 달아줘. 도름스에서 복사한 사이트 id와 주소를 사용해줘.
 
-1. 먼저 npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.1.0.tar.gz detect 로 내 프로젝트 종류를 확인해줘. 이 도구는 npm 에 없으니 위 깃허브 주소 그대로 실행해.
-2. npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.1.0.tar.gz init --client-id <사이트 id> --site <https://내-사이트> --require-teacher 로 파일을 넣어줘. 기존 파일이 있으면 덮어쓰지 말고 무엇이 겹치는지 먼저 알려줘.
-3. 로그인 버튼(components/DormsLoginButton.tsx)을 로그인 화면이나 첫 화면에 놓고, 로그인이 필요한 페이지에서는 lib/dormsLogin.ts 의 getDormsUser() 와 requireDormsUser() 를 써줘. 버튼 디자인과 버튼 아래 DoRms 안내 링크는 기본값 그대로 두고, 내가 바꾸자고 할 때만 바꿔.
-4. 되돌아올 주소는 정확히 <https://내-사이트>/api/auth/dorms/callback 이어야 해. 다른 경로로 만들지 마. 로컬 개발에서는 http://localhost:3000/api/auth/dorms/callback 도 그대로 돼.
-5. 내 사이트에는 비밀값이 필요 없어. 환경 변수는 DORMS_CLIENT_ID 와 DORMS_SITE_URL 둘뿐이야. 배포 환경(Vercel 등)에도 같은 값을 넣어줘.
-6. 다 되면 로컬에서 버튼을 눌러 도름스 로그인 화면이 뜨고, 허용을 누르면 내 사이트로 돌아와 닉네임이 보이는지 확인해줘. 안 되면 npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.1.0.tar.gz doctor 로 원인을 알려줘.
+1. 고정된 v0.2.0 도구로 detect를 실행해 지원되는 프로젝트인지 확인해줘. 자동 설치는 Node.js 22 이상, TypeScript, Next.js 15 이상 App Router, 도메인 첫 경로만 지원해. 다른 환경이면 공개 연동 계약을 읽고 서버에서 확인하는 방식으로 붙여줘.
+2. 처음에는 init, 기존 설치는 upgrade를 사용해줘. 값을 명령에 넣을 때 안전하게 인용하고 기존 파일은 덮어쓰지 마. 겹치는 파일은 .dorms-login/review/의 참고본과 비교해 수정 내용을 합쳐줘.
+3. 로그인 화면에 DormsLoginButton을 놓고 보호할 페이지에서는 requireDormsUser를 호출해줘. 자료를 읽거나 저장하는 API와 서버 액션도 처리 전에 getDormsUser를 확인해줘. 확인 실패 때 예전 로그인 정보로 계속 처리하면 안 돼. 자료 소유자 검사도 유지해줘.
+4. 입장 조건과 이메일은 도름스의 현재 설정을 읽어줘. 예전 설치 당시 값을 코드에 고정하지 마. 회원 구분은 도름스 회원 id로 하고 이메일로 다른 계정과 합치지 마.
+5. 공개 환경 변수 DORMS_CLIENT_ID와 DORMS_SITE_URL을 배포 환경에도 넣어줘. 비밀키는 필요 없어.
+6. doctor, 타입검사, 빌드 후 실제 로그인·로그아웃을 확인해줘. 연결 끊기 뒤 기존 로그인으로 보호한 자료가 열리지 않는지, 입장 조건을 낮추거나 이메일 설정을 바꿔도 맞게 작동하는지 확인해줘. 도름스 장애는 다시 로그인하라는 반복 대신 잠시 뒤 다시 시도하는 안내로 보여줘.
+7. 업데이트에서 직접 합친 파일이 있다면 검증 후 upgrade --accept-reviewed로 기록해줘. 무엇을 확인했고 아직 확인하지 못한 것은 무엇인지 알려줘.
+```
 
-내 프로젝트가 Next.js 가 아니면 도구가 알려주는 PROTOCOL.md 를 읽고 같은 흐름(OAuth 2.1 인가코드 + PKCE, 표준 검색 문서 https://dorms.school/.well-known/openid-configuration)으로 붙여줘. 이 사이트는 이메일을 받지 않아. 회원 구분은 sub(도름스 회원 id)로 해줘.
-~~~
+명령은 npm 패키지명이 아니라 `https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.2.0.tar.gz`를 사용합니다. 다른 환경의 [HTTP 계약](./docs/PROTOCOL.md)도 같은 판을 읽어야 합니다.

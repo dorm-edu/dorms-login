@@ -1,29 +1,14 @@
 ---
 name: dorms-login
-description: 선생님이 만든 사이트에 "DoRms로 로그인" 버튼을 단다. 도름스(dorms.school) 계정으로 로그인하고, 교사 인증 회원만·몇 도름 이상만 같은 문은 도름스가 로그인 순간에 직접 지킨다. 비밀값이 없고 환경 변수는 DORMS_CLIENT_ID·DORMS_SITE_URL 둘뿐이다.
+description: 선생님 사이트에 DoRms 로그인을 설치하거나 안전하게 업데이트한다. 페이지와 데이터 처리 경로를 모두 보호하고 현재 입장 조건을 매번 확인한다.
 ---
 
 # dorms-login
 
-사용자가 "DoRms로 로그인을 달아 달라"고 하면 그 프로젝트 폴더에서 [AGENTS.md](./AGENTS.md)의 순서를 따릅니다. 사이트 id 는 사용자가 도름스 https://dorms.school/connect 에서 받아 프롬프트에 넣어 옵니다. 없으면 그 주소에서 받아 오라고 안내하고 멈춥니다.
+사용자가 DoRms 로그인을 달거나 업데이트해 달라고 하면 [AGENTS.md](./AGENTS.md)를 따릅니다. [도름스 등록 화면](https://dorms.school/connect)에서 받은 사이트 id와 주소가 필요합니다. 이미 설치했다면 `.env.local`, `.env`, 배포 설정에서 공개값 두 개를 먼저 확인합니다.
 
-## 먼저 설명할 내용
+설명할 내용은 간단합니다. 도름스 계정으로 이 사이트에 들어오며 비밀번호는 전달되지 않습니다. 입장 조건과 이메일 전달 여부는 도름스에서 정합니다. 로그인 버튼과 함께 자료를 읽고 저장하는 곳에도 확인을 넣어야 보호됩니다. 도름스에 연결하지 못하면 확인될 때까지 보호한 자료를 열지 않습니다.
 
-- 구글 로그인처럼 도름스 계정으로 이 사이트에 들어오게 하는 기능입니다. 비밀번호는 사이트에 오지 않습니다.
-- 누가 들어올 수 있는지(누구나·교사 인증만·몇 도름 이상)는 도름스가 로그인 순간에 확인합니다. 사이트 코드가 틀려도 문이 열리지 않습니다.
-- 사이트에 비밀값은 없습니다. `DORMS_CLIENT_ID` 와 `DORMS_SITE_URL` 만 있으면 됩니다.
+`detect` → `init` 또는 `upgrade` → 기존 화면과 모든 보호 요청에 연결 → `doctor` → 타입검사·빌드 → 실제 로그인·철회 검증 순서로 진행합니다. 자동 설치 지원 범위는 [README.ko.md](./README.ko.md), 다른 환경의 계약은 [docs/PROTOCOL.md](./docs/PROTOCOL.md)에 있습니다.
 
-## 순서
-
-`detect` → `init --client-id <id> --site <https://주소> [--require-teacher] [--min-dorms N] [--email]` → 버튼을 화면에 놓기 → `doctor` → 로컬에서 실제로 눌러 보기. 실행 예시는 [USE-WITH-AI.md](./USE-WITH-AI.md)에 있습니다.
-
-`init` 은 `lib/dormsLogin.ts`, `components/DormsLoginButton.tsx`, `app/api/auth/dorms/{start,callback,logout}/route.ts`, `app/dorms-denied/page.tsx` 를 넣고 `.env.local` 에 두 값을 덧붙이며 `jose` 를 설치합니다. 기존 파일은 덮어쓰지 않고 `.dorms-login/` 아래에 참고본을 둡니다.
-
-Next.js App Router 가 아니면 [docs/PROTOCOL.md](./docs/PROTOCOL.md)의 HTTP 계약으로 같은 흐름을 직접 붙입니다.
-
-## 지킬 것
-
-- 되돌아올 주소는 `<사이트 주소>/api/auth/dorms/callback` 입니다. 다른 경로로 바꾸지 마세요(도름스에 등록된 주소와 정확히 같아야 합니다).
-- 회원 구분은 `sub`(도름스 회원 id)로 합니다. 이메일은 없을 수 있으니 이메일로 계정을 합치지 마세요.
-- 버튼 아래 DoRms 안내 링크는 기본값입니다. 사용자가 바꾸자고 할 때만 바꿉니다.
-- 배포는 사용자가 따로 요청할 때만 합니다. 배포 환경에 두 환경 변수를 넣어야 한다고 알려 주세요.
+기존 파일은 강제로 덮어쓰지 않습니다. 업데이트의 참고본·차이를 검토해 필요한 변경을 합치고 검증한 다음 `upgrade --accept-reviewed`로 기록합니다. 버튼 아래 도름스 안내 링크는 사용자가 바꾸자고 할 때만 수정합니다.
