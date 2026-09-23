@@ -13,7 +13,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createRemoteJWKSet, decodeJwt, jwtVerify } from "jose";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 export const DORMS_ISSUER = "https://dorms.school";
 /** 개발용: 도름스를 로컬에서 띄워 시험할 때만 DORMS_API_ORIGIN_DEV 로 주소를 바꾼다(운영 빌드에서는 무시). */
@@ -72,9 +72,17 @@ function b64url(bytes = 32): string {
   return randomBytes(bytes).toString("base64url");
 }
 
+/** 로그인 뒤 돌아갈 곳은 이 사이트 안의 경로만. 제어문자·공백·역슬래시·프로토콜 상대 주소는 전부 버린다. */
 function safeNext(raw: string | null | undefined): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\") || raw.length > 512) return "/";
-  return raw;
+  if (!raw || raw.length > 512 || !raw.startsWith("/") || raw.startsWith("//") || /[\u0000-\u0020\u007f\\]/.test(raw)) return "/";
+  try {
+    const base = "https://dorms-login.invalid";
+    const url = new URL(raw, base);
+    if (url.origin !== base || url.username || url.password) return "/";
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return "/";
+  }
 }
 
 /** 로그인 시작: PKCE·state·nonce 를 만들어 임시 쿠키에 두고 도름스 authorize 주소를 돌려준다. */
@@ -118,7 +126,7 @@ export async function finishDormsLogin(input: { code: string; verifier: string; 
   if (!response.ok || typeof body?.id_token !== "string") {
     throw new Error(`도름스 토큰 교환 실패: ${body?.error ?? response.status}`);
   }
-  const { payload } = await jwtVerify(body.id_token, jwks, { issuer: DORMS_ISSUER, audience: clientId(), algorithms: ["EdDSA"] });
+  const { payload } = await jwtVerify(body.id_token, jwks, { issuer: DORMS_ISSUER, audience: clientId(), algorithms: ["EdDSA"], requiredClaims: ["sub", "iat", "exp", "jti"] });
   if (payload.nonce !== input.nonce) throw new Error("도름스 응답의 nonce 가 맞지 않아요.");
   return { idToken: body.id_token, expiresAt: Number(payload.exp) };
 }
@@ -142,7 +150,7 @@ export async function getDormsUser(): Promise<DormsUser | null> {
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, jwks, { issuer: DORMS_ISSUER, audience: clientId(), algorithms: ["EdDSA"] });
+    const { payload } = await jwtVerify(token, jwks, { issuer: DORMS_ISSUER, audience: clientId(), algorithms: ["EdDSA"], requiredClaims: ["sub", "iat", "exp", "jti"] });
     return toUser(payload as Record<string, unknown>);
   } catch {
     return null;
@@ -169,6 +177,9 @@ export async function requireDormsUser(options: { next?: string; requireTeacher?
 
 /** 도름스에 지금 상태를 다시 묻는다(교사 인증·도름 수·연결 끊김·사이트 잠금이 즉시 반영). 실패하면 null. */
 export async function refreshDormsUser(): Promise<DormsUser | null> {
+  // 먼저 이 사이트용(aud=내 사이트 id) 토큰인지 서명까지 확인한다. 다른 사이트의 토큰을 쿠키에 넣어도 여기서 걸린다.
+  const local = await getDormsUser();
+  if (!local) return null;
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -176,8 +187,9 @@ export async function refreshDormsUser(): Promise<DormsUser | null> {
     const response = await fetch(DORMS_USERINFO_URL, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(8_000) });
     if (!response.ok) return null;
     const body = (await response.json()) as Record<string, unknown>;
-    const exp = Number(decodeJwt(token).exp ?? 0);
-    return toUser({ ...body, exp });
+    if (body.sub !== local.id) return null;
+    const fresh = toUser({ ...body, exp: local.expiresAt });
+    return meetsDormsPolicy(fresh) ? fresh : null;
   } catch {
     return null;
   }

@@ -33,6 +33,12 @@ const member = await requireDormsUser({ next: "/dashboard" }); // 없으면 도�
 
 `user` 에는 `id`(도름스 회원 id), `name`, `handle`, `picture`, `teacherVerified`, `dorms`(받은 도름 수), `email`(허용된 경우만)이 있습니다. 회원을 구분하는 기준은 `id` 입니다.
 
+로그아웃은 다른 사이트가 링크로 시키지 못하게 같은 사이트의 POST 만 받습니다.
+
+~~~tsx
+<form method="post" action={dormsLogoutHref}><button type="submit">로그아웃</button></form>
+~~~
+
 ## 무엇이 전달되나
 
 회원이 동의 화면에서 허용했을 때만 닉네임·프로필 사진·교사 인증 여부·받은 도름 수가 옵니다. 이메일은 제작자가 켜 두고 회원이 따로 허용한 사이트에만 옵니다. 비밀번호와 도름스 로그인 상태는 절대 오지 않습니다. 회원은 도름스에서 언제든 연결을 끊을 수 있습니다.

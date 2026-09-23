@@ -4,13 +4,21 @@ import { SESSION_COOKIE } from "__DORMS_LIB_IMPORT__";
 
 export const dynamic = "force-dynamic";
 
-/** 이 사이트의 로그인만 끝낸다(도름스 자체 로그인은 그대로). */
-function logout(request: NextRequest) {
-  const response = NextResponse.redirect(new URL("/", request.url), 302);
+/** 이 사이트의 로그인만 끝낸다(도름스 자체 로그인은 그대로). 다른 사이트가 링크로 로그아웃시키지 못하게 POST + 같은 출처만 받는다. */
+export async function POST(request: NextRequest) {
+  const origin = new URL(request.url).origin;
+  const from = request.headers.get("origin") ?? (request.headers.get("referer") ? new URL(request.headers.get("referer")!).origin : null);
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if ((from && from !== origin) || (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none")) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  const response = NextResponse.redirect(new URL("/", request.url), 303);
   response.cookies.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
   response.headers.set("Cache-Control", "no-store");
   return response;
 }
 
-export const GET = logout;
-export const POST = logout;
+/** GET 은 아무것도 바꾸지 않고 홈으로만 보낸다(옛 링크 호환). */
+export function GET(request: NextRequest) {
+  return NextResponse.redirect(new URL("/", request.url), 303);
+}
