@@ -1,0 +1,20 @@
+{
+  "name": "dorms-login",
+  "version": "0.1.0",
+  "description": "선생님이 만든 사이트에 \"DoRms로 로그인\" 버튼을 다는 도구. 도름스(dorms.school) 계정으로 로그인하고, 교사 인증 회원만·몇 도름 이상만 같은 문은 도름스가 지킨다.",
+  "type": "module",
+  "bin": {
+    "dorms-login": "bin/dorms-login.js"
+  },
+  "scripts": {
+    "selftest": "node --test verify/*.test.mjs"
+  },
+  "keywords": ["dorms", "login", "oauth", "oidc", "pkce", "nextjs", "korea", "education", "teacher"],
+  "license": "MIT",
+  "author": "홍창욱 (Team DoRm)",
+  "repository": { "type": "git", "url": "git+https://github.com/shinnanchanguk/dorms-login.git" },
+  "homepage": "https://dorms.school/connect",
+  "bugs": { "url": "https://github.com/shinnanchanguk/dorms-login/issues" },
+  "engines": { "node": ">=18" },
+  "files": ["bin", "templates", "docs", "verify", "LICENSE", "README.md", "README.ko.md", "SKILL.md", "AGENTS.md", "USE-WITH-AI.md", "SECURITY.md"]
+}
