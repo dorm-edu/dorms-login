@@ -28,7 +28,7 @@ test("install matrix resolves real files regardless of aliases or app placement"
     const imp = /from "([^"]*dormsLogin)"/.exec(readFileSync(route, "utf8"))[1];
     assert.ok(existsSync(path.resolve(path.dirname(route), imp) + ".ts"));
     assert.equal(readFileSync(path.join(dir, src ? "src/lib/dormsLogin.ts" : "lib/dormsLogin.ts"), "utf8").includes("__DORMS_"), false);
-    assert.equal(JSON.parse(readFileSync(path.join(dir, ".dorms-login.json"), "utf8")).version, "0.2.0");
+    assert.equal(JSON.parse(readFileSync(path.join(dir, ".dorms-login.json"), "utf8")).version, "0.3.0");
   }
 });
 
@@ -75,7 +75,7 @@ test("safe upgrade replaces owned unmodified files and preserves customized file
   assert.equal(readFileSync(lib, "utf8"), original); assert.equal(readFileSync(button, "utf8"), custom);
   assert.ok(existsSync(path.join(dir, ".dorms-login/review/components/DormsLoginButton.tsx.diff")));
   assert.equal(run(dir, "upgrade", "--accept-reviewed", "--no-install").status, 0);
-  assert.equal(JSON.parse(readFileSync(manifest, "utf8")).version, "0.2.0");
+  assert.equal(JSON.parse(readFileSync(manifest, "utf8")).version, "0.3.0");
   assert.equal(run(dir, "upgrade", "--no-install").status, 1, "future upgrades must keep custom files protected");
   assert.equal(readFileSync(button, "utf8"), custom);
 });
@@ -110,4 +110,19 @@ test("existing different credentials and symlink destinations stop before modify
     assert.equal(init(dangling).status, 2, `dangling ${target}`);
     assert.equal(existsSync(external), false, "must not create a file or directory outside the project");
   }
+});
+
+test("donations are opt-in, persist on upgrade, and customized logout is preserved", (t) => {
+  const dir = scaffold(t); assert.equal(init(dir).status, 0);
+  assert.equal(existsSync(path.join(dir, "lib/dormsDonation.ts")), false);
+  const logout = path.join(dir, "app/api/auth/dorms/logout/route.ts");
+  const custom = readFileSync(logout, "utf8") + "\n// custom logout behavior\n";
+  writeFileSync(logout, custom);
+  assert.equal(run(dir, "upgrade", "--donations", "--no-install").status, 1);
+  assert.equal(readFileSync(logout, "utf8"), custom);
+  assert.match(readFileSync(path.join(dir, ".dorms-login/review/app/api/auth/dorms/logout/route.ts"), "utf8"), /revokeDonation/);
+  assert.equal(JSON.parse(readFileSync(path.join(dir, ".dorms-login.json"), "utf8")).donations, true);
+  assert.equal(existsSync(path.join(dir, "components/DormsDonationButton.tsx")), true);
+  assert.equal(run(dir, "upgrade", "--no-install").status, 1);
+  assert.equal(existsSync(path.join(dir, "lib/dormsDonation.ts")), true);
 });

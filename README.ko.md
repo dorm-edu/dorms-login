@@ -15,9 +15,9 @@
 AI가 실행하는 명령입니다. npm에 게시한 패키지가 아니므로 GitHub 주소를 그대로 사용합니다.
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.2.0.tar.gz detect
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.2.0.tar.gz init --client-id '<사이트 id>' --site 'https://example.com'
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.2.0.tar.gz doctor
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.3.0.tar.gz detect
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.3.0.tar.gz init --client-id '<사이트 id>' --site 'https://example.com'
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.3.0.tar.gz doctor
 ```
 
 `init`은 로그인 파일 6개와 설치 기록 `.dorms-login.json`을 만들고 `jose`를 설치합니다. 환경 변수는 공개값인 `DORMS_CLIENT_ID`, `DORMS_SITE_URL` 두 개입니다. 배포 환경에도 같은 값을 넣어야 합니다. 기존 파일은 덮어쓰지 않습니다.
@@ -81,7 +81,7 @@ v0.2.0의 `getDormsUser()`, `requireDormsUser()`, `refreshDormsUser()`는 호출
 공개 도구의 새 판을 내도 각 사이트에 복사해 둔 코드는 자동으로 바뀌지 않습니다. AI에게 다음 명령으로 확인하고 업데이트를 마쳐 달라고 요청하세요.
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.2.0.tar.gz upgrade
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.3.0.tar.gz upgrade
 ```
 
 설치 기록과 내용이 같은 파일만 자동으로 바꿉니다. 직접 고친 파일은 보존하고 `.dorms-login/review/`에 새 참고본과 차이를 남깁니다. v0.1.0에는 설치 기록이 없으므로 AI가 참고본의 변경을 기존 코드와 합쳐야 합니다. 검토할 파일이 남으면 명령은 종료 코드 `1`을 반환합니다.
@@ -93,3 +93,11 @@ AI가 차이를 합친 뒤 타입검사·빌드·실제 로그인·연결 끊기
 회원이 허용한 사이트에 닉네임, 사진, 교사 인증 여부, 받은 도름 수가 전달됩니다. 이메일은 사이트가 요청하고 회원이 허용했을 때만 전달되며 애플 이메일 가리기 계정 등에서는 없을 수 있습니다. 비밀번호와 도름스 자체 로그인 쿠키는 전달하지 않습니다. 도름스에서 연결을 끊으면 새 정보 전달을 중단하고, v0.2.0의 확인 함수를 적용한 사이트는 다음 보호 요청부터 차단합니다. 이전 설치본은 업데이트가 필요합니다.
 
 [HTTP 계약](./docs/PROTOCOL.md) · [보안 안내](./SECURITY.md) · [MIT 라이선스](./LICENSE)
+
+## 도름네이션 추가하기
+
+내가 만든 앱에 사람들이 도름스로 로그인하고, 서로에게 도름을 줄 수 있어요(도름네이션).
+
+기존 로그인에 `upgrade --donations`를 실행하면 전송 도우미와 버튼을 추가합니다. 신규 설치는 `init --donations`를 사용합니다. 선택하지 않으면 로그인 기능만 설치됩니다. 도름스에서 운영자의 신청과 관리자 승인이 필요하며, 이용자는 처음 한 번 도름 사용을 허용합니다. 모든 앱을 합쳐 한 사람당 하루 최대 3도름, 한국 시간 자정 기준입니다. 사용 가능한 도름만 옮기며 누적 평판과 랭킹은 바뀌지 않습니다.
+
+[복사해서 AI에 부탁하기](USE-WITH-AI.md#도름네이션도-붙이기) · [다른 환경의 연동 안내](docs/PROTOCOL.md#도름네이션-선택-기능-v030)

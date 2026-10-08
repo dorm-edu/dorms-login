@@ -73,3 +73,27 @@ Error bodies include `{ error, reason }`. The SDK maps denied access to 403 and 
 ## Limits
 
 No refresh-token, single-logout, token introspection or complete OIDC conformance is claimed. Local logout clears this site's session and flow cookies using a same-origin POST; it does not log the member out of DoRms. A browser-only app cannot protect data already shipped to the browser. Put verification on the data-serving backend. Authorization cannot revoke data previously downloaded or retroactively stop an operation already authorized.
+
+## 도름네이션 (선택 기능, v0.3.0)
+
+내가 만든 앱에 사람들이 도름스로 로그인하고, 서로에게 도름을 줄 수 있어요(도름네이션).
+
+사이트 운영자가 `/connect`에서 신청하고 관리자가 승인해야 사용할 수 있습니다. 이용자는 최초 한 번 도름 사용에 동의합니다. 모든 연동 사이트를 합쳐 한 사람당 한국 시간 하루 최대 3도름을 보냅니다. 수신자는 해당 앱에서 실제로 도름스로 로그인한 회원이어야 합니다. 사용 가능한 잔액만 이동하고 평판·랭킹은 늘어나지 않습니다.
+
+기존 `openid profile email` scope 및 로그인 응답은 그대로입니다. 별도의 도름네이션 권한으로 도름 전송만 허용하며 DB 접근권한·서비스 키·클라이언트 비밀키는 필요하지 않습니다.
+
+- `GET /api/connect/donations/authorize`: `client_id`, `redirect_uri`, `state`, `code_challenge`, `code_challenge_method=S256`, `session_expires_at`(현재 로그인 만료 epoch 초). Dorms 로그인 및 최초 동의 후 `code`, `state`를 되돌립니다. 등록된 사이트 origin의 `/api/auth/dorms/donation/callback`만 사용합니다.
+- `POST /api/connect/donations/token`: 현재 로그인 ID 토큰을 `Authorization: Bearer <id_token>` 헤더에 넣고 JSON `{client_id, redirect_uri, code, code_verifier}`. 응답 `{donation_token, expires_in, subject}`. 공급자는 로그인 토큰의 서명·발급자·대상 사이트·회원·동의 세대·만료를 검증하고 발급되는 도름네이션 토큰을 그 로그인 만료 이내, 최대 7일로 제한합니다. 브라우저가 주장한 `session_expires_at`만으로 수명을 늘릴 수 없습니다. 로그인 ID 토큰은 이 교환 요청에서만 쓰고 status/send/revoke에는 전용 도름네이션 토큰을 사용합니다.
+- `GET /api/connect/donations/status`: 전용 토큰의 Bearer 인증. 응답 `{subject, availableBalance, dailyRemaining, resetsAt}`. `resetsAt`은 ISO 8601 시각입니다.
+- `POST /api/connect/donations/send`: 동일 인증과 JSON `{recipientId, amount, requestId}`. 수량은 1~3 정수, 두 ID는 UUID입니다. 응답 `{transferId, amount, availableBalance, dailyRemaining, resetsAt}`는 DB 반영 후에만 반환됩니다.
+- `POST /api/connect/donations/revoke`: 동일 인증. 토큰 폐기 후 JSON 응답을 반환합니다.
+
+서버용 `getDonationStatus()`와 `sendDonation({recipientId, amount, requestId})`는 매번 현재 로그인 상태를 검사합니다. 전송 결과를 요청 사이에 캐시하지 않습니다. 공개 status/send 라우트에는 토큰이 포함되지 않습니다. 토큰은 host-only, HttpOnly, SameSite=Lax, 운영 Secure 쿠키에 넣고 현재 로그인 세션과 묶습니다. 로그아웃 시 Dorms의 토큰 폐기가 확인된 다음 쿠키를 지웁니다. 폐기 서버가 응답하지 않으면 로그아웃은 503으로 실패하므로 다시 시도해야 합니다.
+
+브라우저에서 보내는 전송은 같은 origin의 JSON POST만 허용합니다. 사용자 정의 서버 액션에서도 Origin 검사를 유지하세요. 출처를 알 수 없는 요청, 비허용 origin, 다른 사이트 요청은 거절합니다. 런타임은 Node.js입니다.
+
+`requestId`는 전송 시도마다 `crypto.randomUUID()`로 만들고 응답 유실·네트워크 장애·5xx 재시도에는 같은 ID와 원래 수신자·수량을 사용합니다. 성공·업무상 거절 뒤 새 전송은 새 ID를 씁니다. 자정을 넘겨도 재시도는 같은 결과입니다. 성공이 확인되기 전 방송 효과나 잔액 증가를 표시하지 않습니다.
+
+실패 응답의 `{reason}`과 HTTP 상태를 보존합니다. `authentication_required`는 로그인, `consent_required`는 최초 허용, 승인 대기는 사이트 운영자 신청·승인 안내, 잔액 부족과 일일 한도는 각각 사용자 안내로 처리합니다. 429·5xx·연결 실패는 성공 여부 미확정이므로 같은 요청으로 재확인합니다. `doctor`는 사이트의 승인 상태를 확인하며 개별 회원 동의 여부는 그 회원의 실제 첫 사용에서 확인합니다.
+
+외부 앱이 침해되면 동의한 회원의 하루 한도 안에서 도름 전송이 오용될 수 있습니다. 운영자 중지·회원 연결 철회가 다음 요청부터 적용됩니다. 도름을 받는 것만으로 다른 회원의 잔액이나 회원 정보를 조회할 권한은 생기지 않습니다.

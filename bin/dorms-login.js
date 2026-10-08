@@ -82,14 +82,20 @@ function safeWritePath(file) {
 function walk(dir) {
   return readdirSync(dir).flatMap((name) => { const p = path.join(dir, name); return statSync(p).isDirectory() ? walk(p) : [p]; });
 }
-function targets(d) {
+function targets(d, donations = false) {
   const libFile = path.join(root, d.base, "lib/dormsLogin");
-  return walk(TEMPLATE_ROOT).map((src) => {
-    const rel = path.relative(TEMPLATE_ROOT, src);
+  const sources = new Map(walk(TEMPLATE_ROOT).map((src) => [path.relative(TEMPLATE_ROOT, src), src]));
+  if (donations) {
+    const extra = path.join(HERE, "..", "templates", "donation");
+    for (const src of walk(extra)) sources.set(path.relative(extra, src), src);
+  }
+  return [...sources].map(([rel, src]) => {
     const dest = rel.startsWith(`app${path.sep}`) ? path.join(root, d.appDir, rel.slice(4)) : path.join(root, d.base, rel);
     let imp = path.relative(path.dirname(dest), libFile).split(path.sep).join("/");
     if (!imp.startsWith(".")) imp = `./${imp}`;
-    return { dest, rel: path.relative(root, dest).split(path.sep).join("/"), text: readFileSync(src, "utf8").replaceAll("__DORMS_LIB_IMPORT__", imp) };
+    let donationImp = path.relative(path.dirname(dest), path.join(root, d.base, "lib/dormsDonation")).split(path.sep).join("/");
+    if (!donationImp.startsWith(".")) donationImp = `./${donationImp}`;
+    return { dest, rel: path.relative(root, dest).split(path.sep).join("/"), text: readFileSync(src, "utf8").replaceAll("__DORMS_LIB_IMPORT__", imp).replaceAll("__DORMS_DONATION_IMPORT__", donationImp) };
   });
 }
 function ensureEnv(filename, id, site) {
@@ -111,8 +117,9 @@ function install(upgrade) {
   if (!site) fail("--site에는 https://example.com처럼 도메인 주소만 넣어 주세요. /my-app 같은 하위 경로와 명령 기호는 자동 설치에서 지원하지 않아요.");
   if (env.DORMS_CLIENT_ID && env.DORMS_CLIENT_ID !== id) fail("기존 DORMS_CLIENT_ID가 달라요. 어느 사이트를 연결할지 먼저 확인해 주세요.");
   if (env.DORMS_SITE_URL && siteOrigin(env.DORMS_SITE_URL) !== site) fail("기존 DORMS_SITE_URL이 달라요. 기존 설정을 확인해 주세요.");
-  const files = targets(d);
   const previous = json(manifestPath);
+  const donations = flag("donations") || previous?.donations === true;
+  const files = targets(d, donations);
   if (existsSync(manifestPath) && (!previous || previous.schemaVersion !== 1 || !previous.files || typeof previous.files !== "object")) fail(".dorms-login.json을 읽지 못했어요. 설치 기록을 확인한 뒤 다시 실행해 주세요.");
   for (const p of [...files.map((f) => f.dest), manifestPath, path.join(root, ".env.local"), path.join(root, ".env.example"), path.join(root, ".gitignore"), path.join(root, ".dorms-login/review")]) safeWritePath(p);
   const hashes = { ...previous?.files };
@@ -144,7 +151,7 @@ function install(upgrade) {
   let giText = existsSync(gi) ? readFileSync(gi, "utf8") : "";
   for (const line of [".dorms-login/", ".env.local"]) if (!giText.split(/\r?\n/).includes(line)) giText += `${giText && !giText.endsWith("\n") ? "\n" : ""}${line}\n`;
   writeFileSync(gi, giText);
-  writeFileSync(manifestPath, JSON.stringify({ schemaVersion: 1, version: pending.length ? previous?.version ?? null : PKG.version, targetVersion: PKG.version, files: hashes, pending }, null, 2) + "\n");
+  writeFileSync(manifestPath, JSON.stringify({ schemaVersion: 1, donations, version: pending.length ? previous?.version ?? null : PKG.version, targetVersion: PKG.version, files: hashes, pending }, null, 2) + "\n");
   if (!d.hasJose && !flag("no-install")) {
     const bins = { npm: ["npm", ["install", "jose@^6.2.3"]], pnpm: ["pnpm", ["add", "jose@^6.2.3"]], yarn: ["yarn", ["add", "jose@^6.2.3"]], bun: ["bun", ["add", "jose@^6.2.3"]] };
     const [bin, argv] = bins[d.pm];
@@ -163,7 +170,7 @@ async function doctor() {
   const d = detect(); printDetect(d);
   const env = localEnv(), id = env.DORMS_CLIENT_ID ?? "", site = siteOrigin(env.DORMS_SITE_URL ?? "");
   const checks = [[d.supported, "자동 설치 지원 범위"], [UUID.test(id), "사이트 id"], [!!site, "도메인 주소"], [d.hasJose, "jose 의존성"]];
-  if (d.appDir) for (const f of targets(d)) checks.push([existsSync(f.dest), f.rel]);
+  if (d.appDir) for (const f of targets(d, json(manifestPath)?.donations === true)) checks.push([existsSync(f.dest), f.rel]);
   const record = json(manifestPath);
   checks.push([record?.version === PKG.version && Array.isArray(record?.pending) && record.pending.length === 0, `설치 기록 ${record?.version ?? "없음"}, 목표 ${PKG.version}`]);
   if (UUID.test(id) && site) {
@@ -172,6 +179,7 @@ async function doctor() {
       url.searchParams.set("redirect_uri", `${site}/api/auth/dorms/callback`);
       const r = await fetch(url, { cache: "no-store", redirect: "error", signal: AbortSignal.timeout(8000) });
       const body = await r.json();
+      if (record?.donations === true) checks.push([body.donations?.status === "approved", `도름네이션 승인: ${body.donations?.status ?? "확인 불가"}. ${CONNECT_URL}에서 신청하고 승인을 받아 주세요. 이용자 동의는 각 이용자의 첫 사용 시 확인해요.`]);
       checks.push([r.ok && body.active === true && Array.isArray(body.scopes), `도름스 등록·되돌아올 주소 확인 (${r.status})`]);
     } catch { checks.push([false, "도름스에 연결하지 못했어요. 잠시 뒤 다시 확인해 주세요."]); }
   }
@@ -180,7 +188,7 @@ async function doctor() {
   say("기본 설정을 확인했어요. 실제 로그인·로그아웃·연결 끊기와 프로젝트 빌드는 별도로 확인해야 해요.");
 }
 function help() {
-  say(`dorms-login ${PKG.version}\n\n  detect\n  init --client-id <id> --site <https://domain> [--no-install]\n  upgrade [--client-id <id>] [--site <https://domain>] [--no-install]\n  upgrade --accept-reviewed     참고본의 변경을 직접 합치고 검증한 뒤 검토 완료 기록\n  doctor\n\n기존 파일을 덮어쓰지 않아요. upgrade는 설치 기록과 일치하는 파일만 바꾸고, 수정된 파일은 .dorms-login/review/에 참고본과 차이를 남겨요.\n사이트 등록: ${CONNECT_URL}\n다른 스택: ${PROTOCOL_URL}`);
+  say(`dorms-login ${PKG.version}\n\n  detect\n  init --client-id <id> --site <https://domain> [--no-install] [--donations]\n  upgrade [--client-id <id>] [--site <https://domain>] [--no-install] [--donations]\n  upgrade --donations           기존 로그인에 도름네이션 추가\n  upgrade --accept-reviewed     참고본의 변경을 직접 합치고 검증한 뒤 검토 완료 기록\n  doctor\n\n기존 파일을 덮어쓰지 않아요. upgrade는 설치 기록과 일치하는 파일만 바꾸고, 수정된 파일은 .dorms-login/review/에 참고본과 차이를 남겨요.\n사이트 등록: ${CONNECT_URL}\n다른 스택: ${PROTOCOL_URL}`);
 }
 try {
   if (command === "detect") printDetect(detect());
