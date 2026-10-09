@@ -179,7 +179,7 @@ async function doctor() {
       url.searchParams.set("redirect_uri", `${site}/api/auth/dorms/callback`);
       const r = await fetch(url, { cache: "no-store", redirect: "error", signal: AbortSignal.timeout(8000) });
       const body = await r.json();
-      if (record?.donations === true) checks.push([body.donations?.status === "approved", `도름네이션 승인: ${body.donations?.status ?? "확인 불가"}. ${CONNECT_URL}에서 신청하고 승인을 받아 주세요. 이용자 동의는 각 이용자의 첫 사용 시 확인해요.`]);
+      if (record?.donations === true) checks.push([body.donations?.status === "approved", `도름네이션 승인: ${body.donations?.status ?? "확인 불가"}. 아직 신청하지 않았다면 ${CONNECT_URL}의 해당 앱 카드에서 도름네이션 설치 프롬프트를 복사해 주세요. 복사하면 자동으로 신청돼요. 설치 명령만으로는 신청되지 않으며 관리자 승인 후 보낼 수 있어요. 이용자 동의는 각 이용자의 첫 사용 시 확인해요.`]);
       checks.push([r.ok && body.active === true && Array.isArray(body.scopes), `도름스 등록·되돌아올 주소 확인 (${r.status})`]);
     } catch { checks.push([false, "도름스에 연결하지 못했어요. 잠시 뒤 다시 확인해 주세요."]); }
   }

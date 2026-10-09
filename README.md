@@ -40,6 +40,8 @@ DoRms never sends passwords or its own session cookies to your site. Members con
 
 ## Optional donations (v0.3.0)
 
-Let people sign in to your app with DoRms and give each other DoRms there. Run `upgrade --donations` for an existing installation, or add `--donations` to `init`. Default login installation and scopes are unchanged. Site administrator approval and one-time member consent are required. Sending transfers spendable balance without increasing reputation, capped at 3 DoRms per member per KST calendar day across all apps.
+Let people sign in to your app with DoRms and give each other DoRms there. First, the site owner clicks **도름네이션 설치 프롬프트 복사** (copy donation installation prompt) on the app's card at [DoRms Connect](https://dorms.school/connect). This automatically submits the application and sends a message to Hong Changuk in the owner's name. Copying the login prompt or running the CLI installation alone does not submit an application.
+
+Give that prompt to your coding assistant. Run `upgrade --donations` for an existing installation, or add `--donations` to `init`. Default login installation and scopes are unchanged. Site administrator approval and one-time member consent are required before sending. Sending transfers spendable balance without increasing reputation, capped at 3 DoRms per member per KST calendar day across all apps.
 
 See [the copy-paste AI prompt](USE-WITH-AI.md#도름네이션도-붙이기) and [the donation protocol](docs/PROTOCOL.md#도름네이션-선택-기능-v030). Production credentials stay in host-only Secure HttpOnly cookies. Modified integration files are preserved for review during upgrades.
