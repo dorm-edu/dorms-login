@@ -28,7 +28,7 @@ test("install matrix resolves real files regardless of aliases or app placement"
     const imp = /from "([^"]*dormsLogin)"/.exec(readFileSync(route, "utf8"))[1];
     assert.ok(existsSync(path.resolve(path.dirname(route), imp) + ".ts"));
     assert.equal(readFileSync(path.join(dir, src ? "src/lib/dormsLogin.ts" : "lib/dormsLogin.ts"), "utf8").includes("__DORMS_"), false);
-    assert.equal(JSON.parse(readFileSync(path.join(dir, ".dorms-login.json"), "utf8")).version, "0.4.0");
+    assert.equal(JSON.parse(readFileSync(path.join(dir, ".dorms-login.json"), "utf8")).version, "0.4.1");
   }
 });
 
@@ -75,7 +75,7 @@ test("safe upgrade replaces owned unmodified files and preserves customized file
   assert.equal(readFileSync(lib, "utf8"), original); assert.equal(readFileSync(button, "utf8"), custom);
   assert.ok(existsSync(path.join(dir, ".dorms-login/review/components/DormsLoginButton.tsx.diff")));
   assert.equal(run(dir, "upgrade", "--accept-reviewed", "--no-install").status, 0);
-  assert.equal(JSON.parse(readFileSync(manifest, "utf8")).version, "0.4.0");
+  assert.equal(JSON.parse(readFileSync(manifest, "utf8")).version, "0.4.1");
   assert.equal(run(dir, "upgrade", "--no-install").status, 1, "future upgrades must keep custom files protected");
   assert.equal(readFileSync(button, "utf8"), custom);
 });

@@ -1,6 +1,6 @@
 {
   "name": "dorms-login",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "선생님이 만든 사이트에 \"DoRms로 로그인\" 버튼을 다는 도구. 도름스(dorms.school) 계정으로 로그인하고, 교사 인증 회원만·몇 도름 이상만 같은 문은 도름스가 지킨다.",
   "type": "module",
   "bin": {
