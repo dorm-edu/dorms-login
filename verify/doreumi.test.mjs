@@ -73,7 +73,7 @@ test("item proxy: only item-id shapes, maps DoRms refusals, streams only glb wit
   const { sdk, state } = load();
   for (const bad of ["../x", "A", "", "c-1/2"]) assert.equal((await sdk.fetchDormsDoreumiItem(bad)).status, 404);
   assert.equal(state.calls.length, 0);
-  state.fetch = () => new Response(glb({ asset: { version: "2.0" }, images: [{ bufferView: 0, mimeType: "image/png" }] }), { status: 200, headers: { "content-type": "model/gltf-binary" } });
+  state.fetch = () => new Response(glb({ asset: { version: "2.0" }, meshes: [{ primitives: [] }] }), { status: 200, headers: { "content-type": "model/gltf-binary" } });
   const ok = await sdk.fetchDormsDoreumiItem("c-123456789abc");
   assert.equal(ok.status, 200);
   assert.equal(ok.headers.get("cache-control"), "private, no-store");
@@ -117,6 +117,8 @@ test("item proxy: only item-id shapes, maps DoRms refusals, streams only glb wit
       out.set(body, 20);
       return out;
     })(),
+    // 3MB 안에서도 거대한 배열을 선언한 파일
+    glb({ asset: { version: "2.0" }, accessors: [{ count: 50_000_000, type: "VEC4", componentType: 5126, bufferView: 0 }] }),
     new Uint8Array([1, 2, 3]),
   ]) {
     state.fetch = () => new Response(bytes, { status: 200, headers: { "content-type": "model/gltf-binary" } });

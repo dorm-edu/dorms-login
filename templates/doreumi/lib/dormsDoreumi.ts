@@ -132,6 +132,66 @@ function glbJsonIsSelfContained(text: string): boolean {
   return ok && rawUriKeys === parsedUriKeys;
 }
 
+// A 3MB file can still declare huge arrays or images. Same caps as the Jjongal desktop pet (measured on live items with wide margins).
+const MAX_ACCESSOR_BYTES = 48 * 1024 * 1024, MAX_ACCESSOR_COUNT = 500_000, MAX_IMAGES = 32, MAX_IMAGE_SIDE = 4096, MAX_MESHES = 1024, MAX_NODES = 4096;
+const COMPONENT_BYTES: Record<number, number> = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
+const TYPE_SIZE: Record<string, number> = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT2: 4, MAT3: 9, MAT4: 16 };
+const isCount = (v: unknown, max: number) => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= max;
+
+function imageSize(d: Uint8Array): { width: number; height: number } | null {
+  const view = new DataView(d.buffer, d.byteOffset, d.byteLength);
+  if (d.length >= 24 && view.getUint32(0) === 0x89504e47 && view.getUint32(12) === 0x49484452) return { width: view.getUint32(16), height: view.getUint32(20) };
+  if (d.length >= 4 && d[0] === 0xff && d[1] === 0xd8) {
+    let i = 2;
+    for (let guard = 0; guard < 10_000 && i + 4 <= d.length; guard++) {
+      if (d[i] !== 0xff) return null;
+      const marker = d[i + 1];
+      if (marker === 0xff) { i++; continue; }
+      if (marker === 0xd8 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) { i += 2; continue; }
+      const length = (d[i + 2] << 8) | d[i + 3];
+      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker) && i + 9 <= d.length) return { height: (d[i + 5] << 8) | d[i + 6], width: (d[i + 7] << 8) | d[i + 8] };
+      if (length < 2) return null;
+      i += 2 + length;
+    }
+    return null;
+  }
+  const ascii = (at: number, n: number) => String.fromCharCode(...d.subarray(at, at + n));
+  if (d.length >= 30 && ascii(0, 4) === "RIFF" && ascii(8, 4) === "WEBP") {
+    const kind = ascii(12, 4);
+    if (kind === "VP8 ") return { width: view.getUint16(26, true) & 0x3fff, height: view.getUint16(28, true) & 0x3fff };
+    if (kind === "VP8L") return { width: 1 + (((d[22] & 0x3f) << 8) | d[21]), height: 1 + (((d[24] & 0x0f) << 10) | (d[23] << 2) | ((d[22] & 0xc0) >> 6)) };
+    if (kind === "VP8X") return { width: 1 + (d[24] | (d[25] << 8) | (d[26] << 16)), height: 1 + (d[27] | (d[28] << 8) | (d[29] << 16)) };
+  }
+  return null;
+}
+
+type Gltf = { accessors?: { count?: unknown; type?: unknown; componentType?: unknown; bufferView?: unknown; sparse?: { count?: unknown } }[]; bufferViews?: { buffer?: unknown; byteOffset?: unknown; byteLength?: unknown }[]; buffers?: unknown[]; images?: { bufferView?: unknown; uri?: unknown }[]; meshes?: unknown[]; nodes?: unknown[] };
+
+function withinBudget(json: Gltf, bytes: ArrayBuffer, bin: { start: number; length: number } | undefined): boolean {
+  if (!json || typeof json !== "object" || !isCount(json.meshes?.length ?? 0, MAX_MESHES) || !isCount(json.nodes?.length ?? 0, MAX_NODES) || (json.buffers?.length ?? 0) > 1) return false;
+  let total = 0;
+  for (const a of json.accessors ?? []) {
+    const size = TYPE_SIZE[String(a.type)], component = COMPONENT_BYTES[Number(a.componentType)];
+    if (!size || !component || !isCount(a.count, MAX_ACCESSOR_COUNT)) return false;
+    if (a.bufferView === undefined && a.sparse === undefined) return false;
+    if (a.sparse !== undefined && !isCount(a.sparse.count, MAX_ACCESSOR_COUNT)) return false;
+    total += (a.count as number) * size * component;
+    if (total > MAX_ACCESSOR_BYTES) return false;
+  }
+  const images = json.images ?? [];
+  if (images.length > MAX_IMAGES) return false;
+  for (const image of images) {
+    if (image.uri !== undefined) continue; // data: images were already limited to small inline pictures by the uri check
+    const view = Number.isInteger(image.bufferView) ? json.bufferViews?.[image.bufferView as number] : undefined;
+    if (!view || view.buffer !== 0 || !bin) return false;
+    const start = Number(view.byteOffset ?? 0), length = Number(view.byteLength);
+    if (!Number.isInteger(start) || !Number.isInteger(length) || start < 0 || length <= 0 || start + length > bin.length) return false;
+    const dims = imageSize(new Uint8Array(bytes, bin.start + start, length));
+    if (!dims || dims.width > MAX_IMAGE_SIDE || dims.height > MAX_IMAGE_SIDE) return false;
+  }
+  return true;
+}
+
 /** Item files are made by other teachers: only pass GLBs that do not point at outside addresses (buffers/images by URL). */
 function selfContainedGlb(bytes: ArrayBuffer): boolean {
   try {
@@ -153,7 +213,8 @@ function selfContainedGlb(bytes: ArrayBuffer): boolean {
     }
     if (chunks[0]?.type !== 0x4e4f534a) return false;
     if (chunks.length > 2 || (chunks.length === 2 && chunks[1].type !== 0x004e4942)) return false;
-    return glbJsonIsSelfContained(new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(bytes, chunks[0].start, chunks[0].length)));
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(bytes, chunks[0].start, chunks[0].length));
+    return glbJsonIsSelfContained(text) && withinBudget(JSON.parse(text), bytes, chunks[1]);
   } catch {
     return false;
   }
