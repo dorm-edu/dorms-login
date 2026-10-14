@@ -104,12 +104,26 @@ export async function getDormsDoreumi(): Promise<DormsDoreumi | null> {
 function selfContainedGlb(bytes: ArrayBuffer): boolean {
   try {
     const view = new DataView(bytes);
-    if (bytes.byteLength < 20 || view.getUint32(0, true) !== 0x46546c67 || view.getUint32(4, true) !== 2) return false;
-    const length = view.getUint32(12, true);
-    if (view.getUint32(16, true) !== 0x4e4f534a || 20 + length > bytes.byteLength) return false;
-    const json = JSON.parse(new TextDecoder().decode(new Uint8Array(bytes, 20, length))) as { buffers?: { uri?: unknown }[]; images?: { uri?: unknown }[] };
-    if ((json.buffers ?? []).some((b) => b.uri !== undefined)) return false;
-    return (json.images ?? []).every((i) => i.uri === undefined || (typeof i.uri === "string" && /^data:image\/(png|jpeg|webp|ktx2);base64,/i.test(i.uri)));
+    if (bytes.byteLength < 20 || view.getUint32(0, true) !== 0x46546c67 || view.getUint32(4, true) < 2) return false;
+    // Walk every chunk like three.js GLTFLoader (it keeps the last JSON chunk), so a second JSON chunk cannot hide a URL.
+    const end = Math.min(view.getUint32(8, true), bytes.byteLength);
+    const decoder = new TextDecoder();
+    let offset = 12;
+    let jsonChunks = 0;
+    while (offset + 8 <= end) {
+      const length = view.getUint32(offset, true);
+      const type = view.getUint32(offset + 4, true);
+      offset += 8;
+      if (offset + length > end) return false;
+      if (type === 0x4e4f534a) {
+        jsonChunks++;
+        const json = JSON.parse(decoder.decode(new Uint8Array(bytes, offset, length))) as { buffers?: { uri?: unknown }[]; images?: { uri?: unknown }[] };
+        if ((json.buffers ?? []).some((b) => b.uri !== undefined)) return false;
+        if (!(json.images ?? []).every((i) => i.uri === undefined || (typeof i.uri === "string" && /^data:image\/(png|jpeg|webp|ktx2);base64,/i.test(i.uri)))) return false;
+      }
+      offset += length;
+    }
+    return jsonChunks > 0;
   } catch {
     return false;
   }

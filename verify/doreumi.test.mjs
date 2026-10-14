@@ -21,7 +21,7 @@ function load() {
   const state = { jar: { dorms_session: "login-token" }, calls: [], fetch: () => json({ sub: "x", doreumi: outfit }) };
   const module = { exports: {} };
   const mocks = { "server-only": {}, "next/headers": { cookies: async () => ({ get: (key) => state.jar[key] ? { value: state.jar[key] } : undefined }) }, "./dormsLogin": { SESSION_COOKIE: "dorms_session", DormsAuthError } };
-  vm.runInNewContext(compiled, { module, exports: module.exports, require: (name) => mocks[name] ?? require(name), Buffer, URL, AbortSignal, Response,
+  vm.runInNewContext(compiled, { module, exports: module.exports, require: (name) => mocks[name] ?? require(name), Buffer, URL, AbortSignal, Response, TextDecoder,
     process: { env: { NODE_ENV: "production" } },
     fetch: async (url, init) => { state.calls.push({ url, init }); return state.fetch(url, init); },
   });
@@ -86,6 +86,16 @@ test("item proxy: only item-id shapes, maps DoRms refusals, streams only glb wit
   for (const bytes of [
     glb({ asset: { version: "2.0" }, images: [{ uri: "https://evil.test/t.png" }] }),
     glb({ asset: { version: "2.0" }, buffers: [{ uri: "a.bin", byteLength: 4 }] }),
+    (() => {
+      // 두 번째 JSON 조각에 바깥 주소를 숨긴 파일(three.js 는 마지막 JSON 조각을 쓴다)
+      const first = glb({ asset: { version: "2.0" } });
+      const extra = glb({ asset: { version: "2.0" }, images: [{ uri: "https://evil.test/t.png" }] }).slice(12);
+      const joined = new Uint8Array(first.length + extra.length);
+      joined.set(first);
+      joined.set(extra, first.length);
+      new DataView(joined.buffer).setUint32(8, joined.length, true);
+      return joined;
+    })(),
     new Uint8Array([1, 2, 3]),
   ]) {
     state.fetch = () => new Response(bytes, { status: 200, headers: { "content-type": "model/gltf-binary" } });
