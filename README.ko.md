@@ -15,9 +15,9 @@
 AI가 실행하는 명령입니다. npm에 게시한 패키지가 아니므로 GitHub 주소를 그대로 사용합니다.
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.3.0.tar.gz detect
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.3.0.tar.gz init --client-id '<사이트 id>' --site 'https://example.com'
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.3.0.tar.gz doctor
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.0.tar.gz detect
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.0.tar.gz init --client-id '<사이트 id>' --site 'https://example.com'
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.0.tar.gz doctor
 ```
 
 `init`은 로그인 파일 6개와 설치 기록 `.dorms-login.json`을 만들고 `jose`를 설치합니다. 환경 변수는 공개값인 `DORMS_CLIENT_ID`, `DORMS_SITE_URL` 두 개입니다. 배포 환경에도 같은 값을 넣어야 합니다. 기존 파일은 덮어쓰지 않습니다.
@@ -81,7 +81,7 @@ v0.2.0의 `getDormsUser()`, `requireDormsUser()`, `refreshDormsUser()`는 호출
 공개 도구의 새 판을 내도 각 사이트에 복사해 둔 코드는 자동으로 바뀌지 않습니다. AI에게 다음 명령으로 확인하고 업데이트를 마쳐 달라고 요청하세요.
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.3.0.tar.gz upgrade
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.0.tar.gz upgrade
 ```
 
 설치 기록과 내용이 같은 파일만 자동으로 바꿉니다. 직접 고친 파일은 보존하고 `.dorms-login/review/`에 새 참고본과 차이를 남깁니다. v0.1.0에는 설치 기록이 없으므로 AI가 참고본의 변경을 기존 코드와 합쳐야 합니다. 검토할 파일이 남으면 명령은 종료 코드 `1`을 반환합니다.
@@ -90,9 +90,32 @@ AI가 차이를 합친 뒤 타입검사·빌드·실제 로그인·연결 끊기
 
 ## 개인정보와 공개 범위
 
-회원이 허용한 사이트에 닉네임, 사진, 교사 인증 여부, 받은 도름 수가 전달됩니다. 이메일은 사이트가 요청하고 회원이 허용했을 때만 전달되며 애플 이메일 가리기 계정 등에서는 없을 수 있습니다. 비밀번호와 도름스 자체 로그인 쿠키는 전달하지 않습니다. 도름스에서 연결을 끊으면 새 정보 전달을 중단하고, v0.2.0의 확인 함수를 적용한 사이트는 다음 보호 요청부터 차단합니다. 이전 설치본은 업데이트가 필요합니다.
+회원이 허용한 사이트에 닉네임, 사진, 교사 인증 여부, 받은 도름 수가 전달됩니다. 이메일과 도름이 착장은 사이트가 요청하고 회원이 허용했을 때만 전달되며 애플 이메일 가리기 계정 등에서는 없을 수 있습니다. 비밀번호와 도름스 자체 로그인 쿠키는 전달하지 않습니다. 도름스에서 연결을 끊으면 새 정보 전달을 중단하고, v0.2.0의 확인 함수를 적용한 사이트는 다음 보호 요청부터 차단합니다. 이전 설치본은 업데이트가 필요합니다.
 
 [HTTP 계약](./docs/PROTOCOL.md) · [보안 안내](./SECURITY.md) · [MIT 라이선스](./LICENSE)
+
+## 도름이 착장 불러오기 (선택, v0.4.0)
+
+회원이 도름스에서 꾸민 도름이(입은 아이템과 색)를 내 사이트에서도 보여 줄 수 있어요. 원하면 도름이 동작도 붙일 수 있어요.
+
+1. [내 사이트 관리](https://dorms.school/connect)에서 해당 앱 카드의 **누가 들어올지 바꾸기**를 열고 **도름이 착장도 받기**를 켭니다. 켜면 로그인할 때 동의 화면에 '도름이 착장'이 추가됩니다. 이미 로그인해 있던 회원은 한 번 다시 로그인해야 착장이 와요.
+2. 기존 로그인에 `upgrade --doreumi`, 새로 설치하면 `init --doreumi`를 실행합니다. `lib/dormsDoreumi.ts`와 경로 두 개(`/api/auth/dorms/doreumi`, `/api/auth/dorms/doreumi/items/<아이템 id>`)가 추가됩니다.
+3. 서버에서 `getDormsDoreumi()`를 부릅니다. 회원이 허용하지 않았거나 옵션이 꺼져 있으면 `null`이니 기본 도름이를 보여 주세요.
+
+```ts
+import { getDormsDoreumi } from "@/lib/dormsDoreumi";
+
+const outfit = await getDormsDoreumi();
+// outfit.items: { id, name, slots, hand, rigged, bone, asset, sha256, preview }[]
+// outfit.colors: { body?, belly?, head? }  (#rrggbb, 없으면 기본색)
+// outfit.model · outfit.rig · outfit.motions: 기본 도름이 모형(동작 26개 포함), 뼈대 계약, 추가 동작 목록
+```
+
+아이템 3D 파일은 `asset`(내 사이트의 `/api/auth/dorms/doreumi/items/<id>`)으로 받습니다. 도름스 토큰은 서버에만 있고 브라우저로 나가지 않아요. 그리는 법은 [연동 계약의 도름이 착장 절](./docs/PROTOCOL.md#도름이-착장-선택-기능-v040)에 있습니다.
+
+착장은 지금 입은 것만 전달돼요. 아이템은 만든 선생님의 작품이라 산 선생님의 도름이에 입혀 보여 줄 때만 쓰고, 따로 모아 두거나 나눠 주지 마세요. 도름이 캐릭터·모형·동작은 아인T 선생님의 작품이고 CC BY-NC 4.0입니다. 화면에 '도름이 © 아인T, CC BY-NC 4.0' 표기를 남겨 주세요.
+
+[복사해서 AI에 부탁하기](USE-WITH-AI.md#도름이-착장도-불러오기)
 
 ## 도름네이션 추가하기
 

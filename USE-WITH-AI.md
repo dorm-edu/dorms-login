@@ -5,7 +5,7 @@
 ```text
 내 사이트에 DoRms로 로그인 버튼을 달아줘. 도름스에서 복사한 사이트 id와 주소를 사용해줘.
 
-1. 고정된 v0.3.0 도구로 detect를 실행해 지원되는 프로젝트인지 확인해줘. 자동 설치는 Node.js 22 이상, TypeScript, Next.js 15 이상 App Router, 도메인 첫 경로만 지원해. 다른 환경이면 공개 연동 계약을 읽고 서버에서 확인하는 방식으로 붙여줘.
+1. 고정된 v0.4.0 도구로 detect를 실행해 지원되는 프로젝트인지 확인해줘. 자동 설치는 Node.js 22 이상, TypeScript, Next.js 15 이상 App Router, 도메인 첫 경로만 지원해. 다른 환경이면 공개 연동 계약을 읽고 서버에서 확인하는 방식으로 붙여줘.
 2. 처음에는 init, 기존 설치는 upgrade를 사용해줘. 값을 명령에 넣을 때 안전하게 인용하고 기존 파일은 덮어쓰지 마. 겹치는 파일은 .dorms-login/review/의 참고본과 비교해 수정 내용을 합쳐줘.
 3. 로그인 화면에 DormsLoginButton을 놓고 보호할 페이지에서는 requireDormsUser를 호출해줘. 자료를 읽거나 저장하는 API와 서버 액션도 처리 전에 getDormsUser를 확인해줘. 확인 실패 때 예전 로그인 정보로 계속 처리하면 안 돼. 자료 소유자 검사도 유지해줘.
 4. 입장 조건과 이메일은 도름스의 현재 설정을 읽어줘. 예전 설치 당시 값을 코드에 고정하지 마. 회원 구분은 도름스 회원 id로 하고 이메일로 다른 계정과 합치지 마.
@@ -14,7 +14,7 @@
 7. 업데이트에서 직접 합친 파일이 있다면 검증 후 upgrade --accept-reviewed로 기록해줘. 무엇을 확인했고 아직 확인하지 못한 것은 무엇인지 알려줘.
 ```
 
-명령은 npm 패키지명이 아니라 `https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.3.0.tar.gz`를 사용합니다. 다른 환경의 [HTTP 계약](./docs/PROTOCOL.md)도 같은 판을 읽어야 합니다.
+명령은 npm 패키지명이 아니라 `https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.0.tar.gz`를 사용합니다. 다른 환경의 [HTTP 계약](./docs/PROTOCOL.md)도 같은 판을 읽어야 합니다.
 
 ## 도름네이션도 붙이기
 
@@ -26,11 +26,25 @@
 
 ```text
 이 앱에 dorms-login의 도름네이션 기능을 붙여줘. 기존 도름스 로그인과 앱의 디자인, 직접 수정한 코드를 보존해줘.
-1. github.com/shinnanchanguk/dorms-login의 검증된 v0.3.0 릴리스를 사용해 detect로 환경을 확인해줘. 릴리스가 아직 없으면 진행하지 말고 알려줘. 지원 범위 밖이면 docs/PROTOCOL.md의 수동 연동 절차로 구현해줘.
+1. github.com/shinnanchanguk/dorms-login의 검증된 v0.4.0 릴리스를 사용해 detect로 환경을 확인해줘. 릴리스가 아직 없으면 진행하지 말고 알려줘. 지원 범위 밖이면 docs/PROTOCOL.md의 수동 연동 절차로 구현해줘.
 2. 기존 DORMS_CLIENT_ID와 DORMS_SITE_URL을 확인하고 upgrade --donations로 추가해줘. 로그인 미설치 상태면 먼저 사이트 등록 안내를 하고 init --donations로 설치해줘. 비밀키나 Dorms DB 권한은 요구하지 마.
 3. 덮어쓰지 말고 .dorms-login/review의 참고본과 차이를 읽어 내 수정 내용과 합쳐줘. 검증한 뒤에만 upgrade --accept-reviewed로 기록해줘.
 4. DormsDonationButton을 받는 선생님이 보이는 곳에 넣고 실제 도름스 회원 ID를 recipientId로 연결해줘. 받는 사람 이름과 보낼 수량을 명확하게 보여줘. 이메일로 계정을 합치지 마. 수량은 1~3도름이야.
 5. 사이트 운영자가 https://dorms.school/connect의 해당 앱 카드에서 도름네이션 설치 프롬프트를 복사했는지 확인해줘. 그 복사 버튼을 누르면 자동으로 사용 신청이 접수돼. 아직 복사하지 않았다면 그 프롬프트를 복사해 전달하도록 안내해줘. 설치 명령만으로는 신청되지 않아. 관리자 승인과 이용자의 첫 허용이 필요해. 미승인·잔액 부족·하루 한도 소진·일시 장애 안내를 각각 보여줘. 기존 로그인만으로 전송 동의가 있었다고 간주하지 마.
 6. 서버의 getDonationStatus와 sendDonation을 쓰고, 토큰을 브라우저 코드·로그에 노출하지 마. 전송은 같은 출처의 POST로만 받고 Origin 검사를 유지해줘. 응답 유실 재시도에는 같은 requestId와 수신자·수량을 유지해 중복 전송을 막아줘. 전송 성공 응답이 왔을 때만 방송 효과를 보여줘.
 7. doctor, 타입검사, 빌드를 실행해줘. 실제 로그인, 최초 허용, 전송, 잔액 반영, 한도 소진, 재시도, 로그아웃, 승인 중지·회원 연결 철회 흐름을 격리 환경에서 확인해줘. 운영 DB에 시험 데이터를 만들지 마. 미확인 항목은 정확히 알려줘.
+```
+
+## 도름이 착장도 불러오기
+
+회원이 도름스에서 꾸민 도름이를 내 앱에서도 보여 줄 수 있어요. 먼저 [내 사이트 관리](https://dorms.school/connect)에서 해당 앱의 '도름이 착장도 받기'를 켜 주세요. 아래 내용을 코딩 AI에 복사해 주세요.
+
+```text
+이 앱에 dorms-login의 도름이 착장 불러오기를 붙여줘. 기존 도름스 로그인과 앱의 디자인, 직접 수정한 코드를 보존해줘.
+1. github.com/shinnanchanguk/dorms-login의 검증된 v0.4.0 릴리스를 사용해 detect로 환경을 확인하고, 기존 설치는 upgrade --doreumi, 새 설치는 init --doreumi 로 추가해줘. 사이트 id와 주소는 기존 DORMS_CLIENT_ID·DORMS_SITE_URL 값을 써. 덮어쓰지 말고 .dorms-login/review 의 차이를 내 수정과 합쳐줘.
+2. https://dorms.school/connect 에서 '도름이 착장도 받기'를 켰는지 나에게 확인해줘. doctor 가 꺼져 있다고 하면 켜도록 안내해줘. 이미 로그인해 있던 사람은 한 번 다시 로그인해야 착장이 와.
+3. 서버에서 getDormsDoreumi()로 착장을 불러와. null 이면 기본 도름이를 보여줘. 아이템 파일은 각 아이템의 asset 경로(/api/auth/dorms/doreumi/items/<id>)로 받고 도름스 토큰을 브라우저에 넘기지 마.
+4. docs/PROTOCOL.md 의 '도름이 착장' 절대로 기본 모형(model)에 아이템을 입혀줘. rigged 아이템은 뼈 이름으로 다시 묶고, 아닌 아이템은 bone 이름의 노드에 붙여. 색 세 곳도 반영해줘. 원하면 model 안의 동작이나 motions 목록의 동작을 AnimationMixer 로 재생해줘.
+5. 착장은 로그인한 그 회원의 도름이를 보여 줄 때만 쓰고 따로 모으거나 나눠 주지 마. 화면에 '도름이 © 아인T, CC BY-NC 4.0' 표기를 남겨줘.
+6. doctor, 타입검사, 빌드를 실행하고 로그아웃, 다시 로그인, 착장 허용, 착장 표시, 착장을 허용하지 않은 회원, 아무것도 안 입은 회원을 확인해줘. 미확인 항목은 정확히 알려줘.
 ```

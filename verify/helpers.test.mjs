@@ -139,3 +139,14 @@ test("token exchange validates nonce, grant generation and callback binding", as
   tokenValue = await token({ nonce: "wrong" });
   await assert.rejects(sdk.finishDormsLogin({ code: "code", verifier: "V".repeat(43), nonce, requestUrl: "http://localhost:3000/callback" }), isReason("authentication_required"));
 });
+
+test("doreumi scope is requested only when DoRms says the site enabled the outfit", async () => {
+  const { sdk, state } = load();
+  for (const doreumi of [true, false, "yes"]) {
+    state.fetch = () => response({ active: true, scopes: ["openid", "profile"], doreumi });
+    const url = new URL((await sdk.beginDormsLogin("http://localhost:3000/start")).authorizeUrl);
+    assert.equal(url.searchParams.get("scope"), doreumi === true ? "openid profile doreumi" : "openid profile");
+  }
+  state.fetch = () => response({ active: true, scopes: ["openid", "profile", "doreumi"] });
+  await assert.rejects(() => sdk.beginDormsLogin("http://localhost:3000/start"), isReason("temporarily_unavailable"));
+});

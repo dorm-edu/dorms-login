@@ -1,4 +1,4 @@
-# DoRms login HTTP contract v0.2.0
+# DoRms login HTTP contract v0.4.0
 
 This contract describes authorization code + PKCE (S256), discovery, an ID token, and userinfo. It implements the core OIDC login flow used here; it does not promise every OIDC feature or automatic compatibility with every OIDC library. There is no client secret. Register a site as a verified teacher at https://dorms.school/connect.
 
@@ -73,6 +73,32 @@ Error bodies include `{ error, reason }`. The SDK maps denied access to 403 and 
 ## Limits
 
 No refresh-token, single-logout, token introspection or complete OIDC conformance is claimed. Local logout clears this site's session and flow cookies using a same-origin POST; it does not log the member out of DoRms. A browser-only app cannot protect data already shipped to the browser. Put verification on the data-serving backend. Authorization cannot revoke data previously downloaded or retroactively stop an operation already authorized.
+
+## 도름이 착장 (선택 기능, v0.4.0)
+
+회원이 도름스에서 꾸민 도름이(입은 아이템과 색)를 사이트가 불러옵니다. 사이트 운영자가 `/connect`에서 '도름이 착장도 받기'를 켜면 configuration 응답에 `doreumi: true`가 실리고, v0.4.0 도구는 authorize `scope`에 `doreumi`를 더합니다. `scopes` 배열에는 넣지 않으므로 v0.2·v0.3 설치본은 그대로 작동합니다. 회원은 동의 화면에서 착장 전달을 따로 허용합니다. 이미 받은 토큰에는 `doreumi`가 없으니 새로 로그인해야 착장을 받을 수 있습니다. 동의 범위가 바뀌면 동의 세대가 새로 바뀌어 다른 기기의 예전 로그인도 다시 로그인해야 합니다.
+
+데스크톱 앱처럼 착장만 필요한 클라이언트는 `scope=openid doreumi`로 프로필 없이 착장만 받습니다(운영자가 등록, RFC 8252 루프백 `http://127.0.0.1:<포트>/<경로>` 지원). 이때 토큰과 userinfo에는 `sub`만 있습니다.
+
+- `GET /api/sso/doreumi`: `Authorization: Bearer <id_token 또는 access_token>`. 매번 현재 동의·사이트 옵션을 확인합니다. 성공 `{ sub, doreumi }`, 옵션이 꺼졌거나 범위가 없거나 연결을 끊었으면 403 `access_denied`, 로그인 만료는 401, 장애는 503입니다. 착장은 토큰과 userinfo에 싣지 않습니다(보호 요청마다 무거운 조회를 하지 않게).
+- `doreumi` = `{ version: 1, items: [{ id, name, slots, hand, rigged, bone, asset, sha256, preview }], colors: { body?, belly?, head? }, model, rig, motions, license }`. `slots`는 `head, face, neck, top, bottom, shoes, back, hand` 가운데 하나 이상(한 벌 옷은 `top`과 `bottom`), `hand`는 손 아이템을 쥔 손(`leftHand`·`rightHand`)입니다. 색은 소문자 `#rrggbb`이고 없으면 기본색입니다.
+- `GET /api/sso/doreumi/items/<id>`: 같은 Bearer. 토큰 주인이 **지금 입은** 아이템의 `.glb`만 줍니다(남의 아이템·안 입은 아이템은 404). 파일은 3MB 이하이고 아이템 id마다 바뀌지 않습니다. `sha256`으로 캐시 키를 잡을 수 있습니다. 공용 캐시에 두지 마세요.
+
+### 그리는 법
+
+- 기본 모형 `model`(EXT_meshopt_compression, three.js는 `GLTFLoader.setMeshoptDecoder(MeshoptDecoder)`)과 뼈대 계약 `rig`(`rig-contract.json`)를 씁니다. 뼈는 `root, body, torso, head, shoulderL/R, armL/R, elbowL/R, wristL/R, thighL/R, kneeL/R, shinL/R, footL/R`이고 부착점 `headAccessory`, `palmL/R`, `lap`이 있습니다. 기준 자세의 뼈 회전은 모두 0이며 `L`은 도름이 자신의 왼쪽(+X), 앞은 +Z입니다.
+- `rigged: false`: 파일의 장면을 `bone` 이름의 노드(뼈 또는 부착점) 자식으로 붙입니다. 파일 안 좌표가 그 뼈 기준 좌표입니다. 손 아이템을 원래와 다른 손에 쥐면 반대쪽 같은 뼈에 붙이고 X 방향으로 거울처럼 뒤집습니다.
+- `rigged: true`: 파일 안 `SkinnedMesh`의 관절을 이름으로 도름이 몸의 뼈에 다시 묶습니다(`new Skeleton(joints, garment inverseBinds)`, 몸 메시의 `bindMatrix`). 한 관절이라도 없으면 그 아이템은 건너뜁니다.
+- 공식 아이템 `flower-pin`은 파일 없이 코드로 그립니다(`asset: null`). 공개 렌더러 [ainssam/doreumi-desktop-pet](https://github.com/ainssam/doreumi-desktop-pet)의 `web/src` 착장 코드(MIT)가 같은 규칙을 구현해 두었으니 참고하세요.
+- 색 세 곳(몸통·배 문양·머리 문양)은 원래 그림 색을 흰색(#f2f4fa)과 남색(#041642) 사이에 놓고 그 비율로 새 색을 섞는 방식입니다. 눈·입이 있는 얼굴판은 칠하지 않습니다.
+
+### 동작
+
+`model`에는 기본 동작 26개(Idle, Walk, Run, Wave, Showcase, HeadTilt, Sit, Think, Bow, Stretch 등)가 들어 있습니다. `motions`는 동작 목록(JSON)이며 각 항목의 `url`은 three.js `AnimationClip.toJSON` 형식이고 트랙 이름은 위 뼈 이름(`body.quaternion` 등)입니다. `AnimationClip.parse()` 결과를 `AnimationMixer`로 같은 모형에 재생하면 됩니다. 모형·동작 파일은 공개 자료라 로그인 없이 받을 수 있습니다.
+
+### 쓰는 범위
+
+착장은 그 회원의 도름이를 보여 줄 때만 씁니다. 아이템은 만든 선생님의 작품입니다. 따로 모아 두거나 다른 회원·다른 캐릭터에 쓰거나 다시 배포하지 마세요. 도름이 캐릭터·모형·표정·동작은 아인T의 작품(CC BY-NC 4.0)이며 화면에 '도름이 © 아인T, CC BY-NC 4.0' 표기를 남깁니다.
 
 ## 도름네이션 (선택 기능, v0.3.0)
 

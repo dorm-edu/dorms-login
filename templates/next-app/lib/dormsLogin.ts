@@ -1,5 +1,5 @@
 /**
- * DoRms login v0.2.0. Server components, route handlers and server actions only.
+ * DoRms login v0.4.0. Server components, route handlers and server actions only.
  * Every protected call verifies the token and asks DoRms for current permission.
  * Do not cache the result across requests or continue with an old user on failure.
  */
@@ -108,12 +108,14 @@ export async function beginDormsLogin(requestUrl: string, next?: string | null):
   const config = await requestJson(configUrl.toString());
   if (config.active !== true) throw new DormsAuthError("access_denied");
   if (!Array.isArray(config.scopes) || !config.scopes.includes("openid") || !config.scopes.includes("profile") || !config.scopes.every((s) => ["openid", "profile", "email"].includes(String(s)))) throw new DormsAuthError("temporarily_unavailable");
+  // The Doreumi outfit is a separate opt-in flag so older installations keep working; ask for it only when DoRms says the site enabled it.
+  const scopes = [...new Set(config.scopes.map(String)), ...(config.doreumi === true ? ["doreumi"] : [])];
   const flow: LoginFlow = { version: 2, state: random(), verifier: random(), nonce: random(), next: safeDormsNext(next), createdAt: Math.floor(Date.now() / 1000) };
   const url = new URL(DORMS_AUTHORIZE_URL);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", id);
   url.searchParams.set("redirect_uri", callback);
-  url.searchParams.set("scope", [...new Set(config.scopes)].join(" "));
+  url.searchParams.set("scope", scopes.join(" "));
   url.searchParams.set("state", flow.state);
   url.searchParams.set("nonce", flow.nonce);
   url.searchParams.set("code_challenge", createHash("sha256").update(flow.verifier, "ascii").digest("base64url"));
