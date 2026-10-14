@@ -96,6 +96,15 @@ test("item proxy: only item-id shapes, maps DoRms refusals, streams only glb wit
       new DataView(joined.buffer).setUint32(8, joined.length, true);
       return joined;
     })(),
+    (() => {
+      // 헤더 길이를 앞 조각까지만 적고 뒤에 JSON 조각을 숨긴 파일
+      const first = glb({ asset: { version: "2.0" } });
+      const extra = glb({ asset: { version: "2.0" }, images: [{ uri: "https://evil.test/t.png" }] }).slice(12);
+      const joined = new Uint8Array(first.length + extra.length);
+      joined.set(first);
+      joined.set(extra, first.length);
+      return joined;
+    })(),
     // 같은 키를 두 번 써서 바깥 주소를 숨긴 파일(앞 키를 읽는 도구도 있다)
     (() => {
       let text = '{"asset":{"version":"2.0"},"images":[{"uri":"https://evil.test/t.png"}],"images":[]}';

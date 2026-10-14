@@ -136,24 +136,24 @@ function glbJsonIsSelfContained(text: string): boolean {
 function selfContainedGlb(bytes: ArrayBuffer): boolean {
   try {
     const view = new DataView(bytes);
-    if (bytes.byteLength < 20 || view.getUint32(0, true) !== 0x46546c67 || view.getUint32(4, true) < 2) return false;
-    // Walk every chunk like three.js GLTFLoader (it keeps the last JSON chunk), so a second JSON chunk cannot hide a URL.
-    const end = Math.min(view.getUint32(8, true), bytes.byteLength);
-    const decoder = new TextDecoder();
+    if (bytes.byteLength < 28 || view.getUint32(0, true) !== 0x46546c67 || view.getUint32(4, true) !== 2) return false;
+    // The header length must be the file length, and the layout must be exactly one JSON chunk first and at most one BIN chunk.
+    // Loaders differ on which JSON chunk they keep (three.js keeps the last), so anything else is refused.
+    if (view.getUint32(8, true) !== bytes.byteLength) return false;
+    const chunks: { type: number; start: number; length: number }[] = [];
     let offset = 12;
-    let jsonChunks = 0;
-    while (offset + 8 <= end) {
+    while (offset < bytes.byteLength) {
+      if (offset + 8 > bytes.byteLength) return false;
       const length = view.getUint32(offset, true);
       const type = view.getUint32(offset + 4, true);
       offset += 8;
-      if (offset + length > end) return false;
-      if (type === 0x4e4f534a) {
-        jsonChunks++;
-        if (!glbJsonIsSelfContained(decoder.decode(new Uint8Array(bytes, offset, length)))) return false;
-      }
+      if (length > bytes.byteLength - offset) return false;
+      chunks.push({ type, start: offset, length });
       offset += length;
     }
-    return jsonChunks > 0;
+    if (chunks[0]?.type !== 0x4e4f534a) return false;
+    if (chunks.length > 2 || (chunks.length === 2 && chunks[1].type !== 0x004e4942)) return false;
+    return glbJsonIsSelfContained(new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(bytes, chunks[0].start, chunks[0].length)));
   } catch {
     return false;
   }
