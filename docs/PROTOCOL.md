@@ -78,7 +78,7 @@ No refresh-token, single-logout, token introspection or complete OIDC conformanc
 
 회원이 도름스에서 꾸민 도름이(입은 아이템과 색)를 사이트가 불러옵니다. 사이트 운영자가 `/connect`에서 '도름이 착장도 받기'를 켜면 configuration 응답에 `doreumi: true`가 실리고, v0.4.0 도구는 authorize `scope`에 `doreumi`를 더합니다. `scopes` 배열에는 넣지 않으므로 v0.2·v0.3 설치본은 그대로 작동합니다. 회원은 동의 화면에서 착장 전달을 따로 허용합니다. 이미 받은 토큰에는 `doreumi`가 없으니 새로 로그인해야 착장을 받을 수 있습니다. 동의 범위가 바뀌면 동의 세대가 새로 바뀌어 다른 기기의 예전 로그인도 다시 로그인해야 합니다.
 
-데스크톱 앱처럼 착장만 필요한 클라이언트는 `scope=openid doreumi`로 프로필 없이 착장만 받습니다(운영자가 등록, RFC 8252 루프백: 포트 없이 등록한 `http://localhost/<경로>` 로 그때그때 연 포트를 받는다). 이때 토큰과 userinfo에는 `sub`만 있습니다.
+데스크톱 앱처럼 착장만 필요한 클라이언트는 `scope=openid doreumi`로 프로필 없이 착장만 받습니다(운영자가 등록, RFC 8252 루프백: 포트 없이 등록한 `http://localhost/<경로>` 로 그때그때 연 포트를 받는다). 이때 토큰과 userinfo에는 프로필 없이 `sub`만 있고, 이 `sub`는 그 사이트에서만 쓰는 별칭이라 도름스 회원 번호나 다른 사이트의 `sub`와 이어지지 않습니다.
 
 - `GET /api/sso/doreumi`: `Authorization: Bearer <id_token 또는 access_token>`. 매번 현재 동의·사이트 옵션을 확인합니다. 성공 `{ sub, doreumi }`, 옵션이 꺼졌거나 범위가 없거나 연결을 끊었으면 403 `access_denied`, 로그인 만료는 401, 장애는 503입니다. 착장은 토큰과 userinfo에 싣지 않습니다(보호 요청마다 무거운 조회를 하지 않게).
 - `doreumi` = `{ version: 1, items: [{ id, name, slots, hand, rigged, bone, asset, sha256, preview }], colors: { body?, belly?, head? }, model, rig, motions, license }`. `slots`는 `head, face, neck, top, bottom, shoes, back, hand` 가운데 하나 이상(한 벌 옷은 `top`과 `bottom`), `hand`는 손 아이템을 쥔 손(`leftHand`·`rightHand`)입니다. 색은 소문자 `#rrggbb`이고 없으면 기본색입니다.
@@ -95,6 +95,9 @@ No refresh-token, single-logout, token introspection or complete OIDC conformanc
 ### 동작
 
 `model`에는 기본 동작 26개(Idle, Walk, Run, Wave, Showcase, HeadTilt, Sit, Think, Bow, Stretch 등)가 들어 있습니다. `motions`는 동작 목록(JSON)이며 각 항목의 `url`은 three.js `AnimationClip.toJSON` 형식이고 트랙 이름은 위 뼈 이름(`body.quaternion` 등)입니다. `AnimationClip.parse()` 결과를 `AnimationMixer`로 같은 모형에 재생하면 됩니다. 모형·동작 파일은 공개 자료라 로그인 없이 받을 수 있습니다.
+
+- 목록 항목의 `ambient: true`는 도름스가 저절로 틀어도 어울린다고 고른 동작이고, `props`가 있는 동작은 줄넘기 같은 소품을 쥔 모습을 가정합니다. 가만히 있을 때 무작위로 틀려면 `ambient`이면서 `props`가 비어 있는 동작을 고르면 자연스럽습니다.
+- 동작은 원래 모형의 뼈대 기준입니다. 다른 뼈대로 옮겨 쓰면 회전 중심(관절 위치)을 원래 모형과 같은 자리에 두고, 한 뼈에 두 관절을 합치지 마세요. 어긋나면 팔을 크게 들 때 몸과 옷이 따로 움직입니다. 원래 모형 그대로 재생하면 신경 쓸 일이 없습니다.
 
 ### 쓰는 범위
 
