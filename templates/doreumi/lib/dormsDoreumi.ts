@@ -169,6 +169,22 @@ function itemShapeOk(raw: Record<string, unknown>): boolean {
     if (!scene || typeof scene !== "object" || (roots !== undefined && (!Array.isArray(roots) || roots.some((r) => !Number.isSafeInteger(r) || r < 0 || r >= nodes.length)))) return false;
   }
   if (raw.scene !== undefined && !index(raw.scene, list("scenes").length)) return false;
+  // Skin joints must be node numbers and no more than the parts; loaders allocate one entry per joint.
+  for (const skin of list("skins")) {
+    const joints = (skin as { joints?: unknown } | null)?.joints;
+    if (!skin || typeof skin !== "object" || !Array.isArray(joints) || joints.length > nodes.length || joints.some((j) => !Number.isSafeInteger(j) || j < 0 || j >= nodes.length)) return false;
+  }
+  // A loop in the part tree makes loaders recurse forever.
+  const state = new Uint8Array(nodes.length);
+  const cyclic = (i: number): boolean => {
+    if (state[i] === 1) return true;
+    if (state[i] === 2) return false;
+    state[i] = 1;
+    for (const c of ((nodes[i] as { children?: number[] }).children ?? [])) if (cyclic(c)) return true;
+    state[i] = 2;
+    return false;
+  };
+  for (let i = 0; i < nodes.length; i++) if (cyclic(i)) return false;
   const meshTriangles: number[] = [], meshDraws: number[] = [];
   for (const mesh of meshes) {
     const primitives = (mesh as { primitives?: unknown } | null)?.primitives;
