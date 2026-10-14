@@ -54,11 +54,26 @@ test("outfit: missing session, refusal and old sessions become null; outages thr
   }
 });
 
+function glb(json) {
+  let text = JSON.stringify(json);
+  while (text.length % 4) text += " ";
+  const body = new TextEncoder().encode(text);
+  const out = new Uint8Array(20 + body.length);
+  const view = new DataView(out.buffer);
+  view.setUint32(0, 0x46546c67, true);
+  view.setUint32(4, 2, true);
+  view.setUint32(8, out.length, true);
+  view.setUint32(12, body.length, true);
+  view.setUint32(16, 0x4e4f534a, true);
+  out.set(body, 20);
+  return out;
+}
+
 test("item proxy: only item-id shapes, maps DoRms refusals, streams only glb within the size cap", async () => {
   const { sdk, state } = load();
   for (const bad of ["../x", "A", "", "c-1/2"]) assert.equal((await sdk.fetchDormsDoreumiItem(bad)).status, 404);
   assert.equal(state.calls.length, 0);
-  state.fetch = () => new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "content-type": "model/gltf-binary" } });
+  state.fetch = () => new Response(glb({ asset: { version: "2.0" }, images: [{ bufferView: 0, mimeType: "image/png" }] }), { status: 200, headers: { "content-type": "model/gltf-binary" } });
   const ok = await sdk.fetchDormsDoreumiItem("c-123456789abc");
   assert.equal(ok.status, 200);
   assert.equal(ok.headers.get("cache-control"), "private, no-store");
@@ -66,6 +81,15 @@ test("item proxy: only item-id shapes, maps DoRms refusals, streams only glb wit
   for (const [status, expected] of [[401, 401], [403, 403], [404, 404], [500, 503]]) {
     state.fetch = () => json({}, status);
     assert.equal((await sdk.fetchDormsDoreumiItem("c-123456789abc")).status, expected);
+  }
+  // 남이 만든 파일이 바깥 주소(이미지·버퍼)를 가리키거나 GLB 가 아니면 넘기지 않는다
+  for (const bytes of [
+    glb({ asset: { version: "2.0" }, images: [{ uri: "https://evil.test/t.png" }] }),
+    glb({ asset: { version: "2.0" }, buffers: [{ uri: "a.bin", byteLength: 4 }] }),
+    new Uint8Array([1, 2, 3]),
+  ]) {
+    state.fetch = () => new Response(bytes, { status: 200, headers: { "content-type": "model/gltf-binary" } });
+    assert.equal((await sdk.fetchDormsDoreumiItem("c-123456789abc")).status, 503);
   }
   state.fetch = () => new Response("<html>", { status: 200, headers: { "content-type": "text/html" } });
   assert.equal((await sdk.fetchDormsDoreumiItem("c-123456789abc")).status, 503);

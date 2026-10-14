@@ -100,6 +100,21 @@ export async function getDormsDoreumi(): Promise<DormsDoreumi | null> {
   return outfit;
 }
 
+/** Item files are made by other teachers: only pass GLBs that do not point at outside addresses (buffers/images by URL). */
+function selfContainedGlb(bytes: ArrayBuffer): boolean {
+  try {
+    const view = new DataView(bytes);
+    if (bytes.byteLength < 20 || view.getUint32(0, true) !== 0x46546c67 || view.getUint32(4, true) !== 2) return false;
+    const length = view.getUint32(12, true);
+    if (view.getUint32(16, true) !== 0x4e4f534a || 20 + length > bytes.byteLength) return false;
+    const json = JSON.parse(new TextDecoder().decode(new Uint8Array(bytes, 20, length))) as { buffers?: { uri?: unknown }[]; images?: { uri?: unknown }[] };
+    if ((json.buffers ?? []).some((b) => b.uri !== undefined)) return false;
+    return (json.images ?? []).every((i) => i.uri === undefined || (typeof i.uri === "string" && /^data:image\/(png|jpeg|webp|ktx2);base64,/i.test(i.uri)));
+  } catch {
+    return false;
+  }
+}
+
 const fail = (reason: string, status: number) => Response.json({ reason }, { status, headers: { "Cache-Control": "no-store" } });
 
 /** One item file of the signed-in member's current outfit, streamed through this site (the token stays on the server). */
@@ -116,7 +131,7 @@ export async function fetchDormsDoreumiItem(id: string): Promise<Response> {
   if (response.status === 404) return fail("not_found", 404);
   if (!response.ok || response.headers.get("content-type") !== "model/gltf-binary") return fail("temporarily_unavailable", 503);
   const bytes = await response.arrayBuffer().catch(() => null);
-  if (!bytes || bytes.byteLength > MAX_ITEM_BYTES) return fail("temporarily_unavailable", 503);
+  if (!bytes || bytes.byteLength > MAX_ITEM_BYTES || !selfContainedGlb(bytes)) return fail("temporarily_unavailable", 503);
   return new Response(bytes, { status: 200, headers: { "Content-Type": "model/gltf-binary", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
 }
 
