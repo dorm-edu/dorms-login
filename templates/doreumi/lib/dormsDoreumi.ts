@@ -156,6 +156,7 @@ function imageSize(d: Uint8Array): { width: number; height: number } | null {
     return null;
   }
   const ascii = (at: number, n: number) => String.fromCharCode(...d.subarray(at, at + n));
+  if (d.length >= 28 && ascii(1, 6) === "KTX 20") return { width: view.getUint32(20, true), height: Math.max(1, view.getUint32(24, true)) };
   if (d.length >= 30 && ascii(0, 4) === "RIFF" && ascii(8, 4) === "WEBP") {
     const kind = ascii(12, 4);
     if (kind === "VP8 ") return { width: view.getUint16(26, true) & 0x3fff, height: view.getUint16(28, true) & 0x3fff };
@@ -167,8 +168,30 @@ function imageSize(d: Uint8Array): { width: number; height: number } | null {
 
 type Gltf = { accessors?: { count?: unknown; type?: unknown; componentType?: unknown; bufferView?: unknown; sparse?: { count?: unknown } }[]; bufferViews?: { buffer?: unknown; byteOffset?: unknown; byteLength?: unknown }[]; buffers?: unknown[]; images?: { bufferView?: unknown; uri?: unknown }[]; meshes?: unknown[]; nodes?: unknown[] };
 
+// Loaders read these lists by index, so an object like {"0": …} in place of an array would skip the count caps. Lists must be arrays.
+const GLTF_LISTS = ["accessors", "animations", "bufferViews", "buffers", "cameras", "images", "materials", "meshes", "nodes", "samplers", "scenes", "skins", "textures"];
+
+function dataImageBytes(uri: string): Uint8Array | null {
+  const comma = uri.indexOf(",");
+  if (comma < 0) return null;
+  try {
+    return Uint8Array.from(atob(uri.slice(comma + 1)), (c) => c.charCodeAt(0));
+  } catch {
+    return null;
+  }
+}
+
 function withinBudget(json: Gltf, bytes: ArrayBuffer, bin: { start: number; length: number } | undefined): boolean {
-  if (!json || typeof json !== "object" || !isCount(json.meshes?.length ?? 0, MAX_MESHES) || !isCount(json.nodes?.length ?? 0, MAX_NODES) || (json.buffers?.length ?? 0) > 1) return false;
+  if (!json || typeof json !== "object" || Array.isArray(json)) return false;
+  for (const key of GLTF_LISTS) {
+    const value = (json as Record<string, unknown>)[key];
+    if (value !== undefined && !Array.isArray(value)) return false;
+  }
+  if (!isCount(json.meshes?.length ?? 0, MAX_MESHES) || !isCount(json.nodes?.length ?? 0, MAX_NODES) || (json.buffers?.length ?? 0) > 1) return false;
+  // The single buffer is the BIN chunk. A buffer with its own uri would make the loader read other bytes than the ones checked here.
+  for (const buffer of json.buffers ?? []) {
+    if (!buffer || typeof buffer !== "object" || (buffer as { uri?: unknown }).uri !== undefined) return false;
+  }
   let total = 0;
   for (const a of json.accessors ?? []) {
     const size = TYPE_SIZE[String(a.type)], component = COMPONENT_BYTES[Number(a.componentType)];
@@ -181,7 +204,13 @@ function withinBudget(json: Gltf, bytes: ArrayBuffer, bin: { start: number; leng
   const images = json.images ?? [];
   if (images.length > MAX_IMAGES) return false;
   for (const image of images) {
-    if (image.uri !== undefined) continue; // data: images were already limited to small inline pictures by the uri check
+    if (!image || typeof image !== "object") return false;
+    if (image.uri !== undefined) {
+      // data: pictures are small in bytes but can still declare a huge size: read their header too
+      const dims = typeof image.uri === "string" ? imageSize(dataImageBytes(image.uri) ?? new Uint8Array()) : null;
+      if (!dims || dims.width > MAX_IMAGE_SIDE || dims.height > MAX_IMAGE_SIDE) return false;
+      continue;
+    }
     const view = Number.isInteger(image.bufferView) ? json.bufferViews?.[image.bufferView as number] : undefined;
     if (!view || view.buffer !== 0 || !bin) return false;
     const start = Number(view.byteOffset ?? 0), length = Number(view.byteLength);

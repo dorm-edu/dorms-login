@@ -21,7 +21,7 @@ function load() {
   const state = { jar: { dorms_session: "login-token" }, calls: [], fetch: () => json({ sub: "x", doreumi: outfit }) };
   const module = { exports: {} };
   const mocks = { "server-only": {}, "next/headers": { cookies: async () => ({ get: (key) => state.jar[key] ? { value: state.jar[key] } : undefined }) }, "./dormsLogin": { SESSION_COOKIE: "dorms_session", DormsAuthError } };
-  vm.runInNewContext(compiled, { module, exports: module.exports, require: (name) => mocks[name] ?? require(name), Buffer, URL, AbortSignal, Response, TextDecoder,
+  vm.runInNewContext(compiled, { module, exports: module.exports, require: (name) => mocks[name] ?? require(name), Buffer, URL, AbortSignal, Response, TextDecoder, atob,
     process: { env: { NODE_ENV: "production" } },
     fetch: async (url, init) => { state.calls.push({ url, init }); return state.fetch(url, init); },
   });
@@ -69,11 +69,19 @@ function glb(json) {
   return out;
 }
 
+const pngHeader = (w, h) => {
+  const d = Buffer.alloc(33);
+  d.writeUInt32BE(0x89504e47, 0); d.writeUInt32BE(0x0d0a1a0a, 4); d.writeUInt32BE(13, 8); d.writeUInt32BE(0x49484452, 12);
+  d.writeUInt32BE(w, 16); d.writeUInt32BE(h, 20);
+  return d.toString("base64");
+};
+const bigPng = pngHeader(16384, 16384);
+
 test("item proxy: only item-id shapes, maps DoRms refusals, streams only glb within the size cap", async () => {
   const { sdk, state } = load();
   for (const bad of ["../x", "A", "", "c-1/2"]) assert.equal((await sdk.fetchDormsDoreumiItem(bad)).status, 404);
   assert.equal(state.calls.length, 0);
-  state.fetch = () => new Response(glb({ asset: { version: "2.0" }, meshes: [{ primitives: [] }] }), { status: 200, headers: { "content-type": "model/gltf-binary" } });
+  state.fetch = () => new Response(glb({ asset: { version: "2.0" }, meshes: [{ primitives: [] }], images: [{ uri: `data:image/png;base64,${pngHeader(64, 64)}` }] }), { status: 200, headers: { "content-type": "model/gltf-binary" } });
   const ok = await sdk.fetchDormsDoreumiItem("c-123456789abc");
   assert.equal(ok.status, 200);
   assert.equal(ok.headers.get("cache-control"), "private, no-store");
@@ -119,6 +127,12 @@ test("item proxy: only item-id shapes, maps DoRms refusals, streams only glb wit
     })(),
     // 3MB 안에서도 거대한 배열을 선언한 파일
     glb({ asset: { version: "2.0" }, accessors: [{ count: 50_000_000, type: "VEC4", componentType: 5126, bufferView: 0 }] }),
+    // 목록 자리에 배열 대신 객체를 넣어 개수 검사를 피하는 파일
+    glb({ asset: { version: "2.0" }, nodes: Object.fromEntries(Array.from({ length: 5000 }, (_, i) => [String(i), {}])) }),
+    // 버퍼에 data: 주소를 달아 검사한 BIN 대신 다른 바이트를 읽히는 파일
+    glb({ asset: { version: "2.0" }, buffers: [{ byteLength: 33, uri: `data:image/png;base64,${bigPng}` }] }),
+    // 바이트는 작은데 가로세로를 아주 크게 적은 data: 그림
+    glb({ asset: { version: "2.0" }, images: [{ uri: `data:image/png;base64,${bigPng}` }] }),
     new Uint8Array([1, 2, 3]),
   ]) {
     state.fetch = () => new Response(bytes, { status: 200, headers: { "content-type": "model/gltf-binary" } });
