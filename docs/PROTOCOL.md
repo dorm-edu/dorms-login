@@ -89,6 +89,7 @@ No refresh-token, single-logout, token introspection or complete OIDC conformanc
 - 기본 모형 `model`(EXT_meshopt_compression, three.js는 `GLTFLoader.setMeshoptDecoder(MeshoptDecoder)`)과 뼈대 계약 `rig`(`rig-contract.json`)를 씁니다. 뼈는 `root, body, torso, head, shoulderL/R, armL/R, elbowL/R, wristL/R, thighL/R, kneeL/R, shinL/R, footL/R`이고 부착점 `headAccessory`, `palmL/R`, `lap`이 있습니다. 기준 자세의 뼈 회전은 모두 0이며 `L`은 도름이 자신의 왼쪽(+X), 앞은 +Z입니다.
 - `rigged: false`: 파일의 장면을 `bone` 이름의 노드(뼈 또는 부착점) 자식으로 붙입니다. 파일 안 좌표가 그 뼈 기준 좌표입니다. 손 아이템을 원래와 다른 손에 쥐면 반대쪽 같은 뼈에 붙이고 X 방향으로 거울처럼 뒤집습니다.
 - `rigged: true`: 파일 안 `SkinnedMesh`의 관절을 이름으로 도름이 몸의 뼈에 다시 묶습니다(`new Skeleton(joints, garment inverseBinds)`, 몸 메시의 `bindMatrix`). 한 관절이라도 없으면 그 아이템은 건너뜁니다.
+- 아이템 파일은 다른 선생님이 만든 파일입니다. 읽기 전에 GLB 안에 닫혀 있는지(`buffers[].uri`가 없고 `images[].uri`는 없거나 `data:image/...`) 확인하세요. 바깥 주소를 가리키면 불러오는 순간 그 주소로 요청이 나갑니다.
 - 공식 아이템 `flower-pin`은 파일 없이 코드로 그립니다(`asset: null`). 공개 렌더러 [ainssam/doreumi-desktop-pet](https://github.com/ainssam/doreumi-desktop-pet)의 `web/src` 착장 코드(MIT)가 같은 규칙을 구현해 두었으니 참고하세요.
 - 색 세 곳(몸통·배 문양·머리 문양)은 원래 그림 색을 흰색(#f2f4fa)과 남색(#041642) 사이에 놓고 그 비율로 새 색을 섞는 방식입니다. 눈·입이 있는 얼굴판은 칠하지 않습니다.
 
