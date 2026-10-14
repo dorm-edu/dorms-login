@@ -76,12 +76,13 @@ const pngHeader = (w, h) => {
   return d.toString("base64");
 };
 const bigPng = pngHeader(16384, 16384);
+const tri = { asset: { version: "2.0" }, accessors: [{ count: 3, type: "VEC3", componentType: 5126, bufferView: 0 }], meshes: [{ primitives: [{ attributes: { POSITION: 0 } }] }], nodes: [{ mesh: 0 }] };
 
 test("item proxy: only item-id shapes, maps DoRms refusals, streams only glb within the size cap", async () => {
   const { sdk, state } = load();
   for (const bad of ["../x", "A", "", "c-1/2"]) assert.equal((await sdk.fetchDormsDoreumiItem(bad)).status, 404);
   assert.equal(state.calls.length, 0);
-  state.fetch = () => new Response(glb({ asset: { version: "2.0" }, meshes: [{ primitives: [] }], images: [{ uri: `data:image/png;base64,${pngHeader(64, 64)}` }] }), { status: 200, headers: { "content-type": "model/gltf-binary" } });
+  state.fetch = () => new Response(glb(tri), { status: 200, headers: { "content-type": "model/gltf-binary" } });
   const ok = await sdk.fetchDormsDoreumiItem("c-123456789abc");
   assert.equal(ok.status, 200);
   assert.equal(ok.headers.get("cache-control"), "private, no-store");
@@ -131,8 +132,14 @@ test("item proxy: only item-id shapes, maps DoRms refusals, streams only glb wit
     glb({ asset: { version: "2.0" }, nodes: Object.fromEntries(Array.from({ length: 5000 }, (_, i) => [String(i), {}])) }),
     // 버퍼에 data: 주소를 달아 검사한 BIN 대신 다른 바이트를 읽히는 파일
     glb({ asset: { version: "2.0" }, buffers: [{ byteLength: 33, uri: `data:image/png;base64,${bigPng}` }] }),
-    // 바이트는 작은데 가로세로를 아주 크게 적은 data: 그림
+    // data: 그림도 받지 않는다(도름스 업로드 규칙과 같이)
     glb({ asset: { version: "2.0" }, images: [{ uri: `data:image/png;base64,${bigPng}` }] }),
+    // 선언 없이 부품에 숨긴 GPU 인스턴싱(면 상한을 피해 수십만 개를 그린다)
+    glb({ ...tri, nodes: [{ mesh: 0, extensions: { EXT_mesh_gpu_instancing: { attributes: { TRANSLATION: 0 } } } }] }),
+    // 같은 모양을 부품 200개가 두 조각씩 그리면 400번 그린다
+    glb({ ...tri, nodes: Array.from({ length: 200 }, () => ({ mesh: 0 })), meshes: [{ primitives: [{ attributes: { POSITION: 0 } }, { attributes: { POSITION: 0 } }] }] }),
+    glb({ ...tri, animations: [{ channels: [], samplers: [] }] }),
+    glb({ ...tri, nodes: [{ mesh: "0" }] }),
     new Uint8Array([1, 2, 3]),
   ]) {
     state.fetch = () => new Response(bytes, { status: 200, headers: { "content-type": "model/gltf-binary" } });

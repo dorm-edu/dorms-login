@@ -100,10 +100,9 @@ export async function getDormsDoreumi(): Promise<DormsDoreumi | null> {
   return outfit;
 }
 
-const DATA_IMAGE = /^data:image\/(png|jpeg|webp|ktx2);base64,/i;
 
 /**
- * Every `uri` anywhere must be a data: image (buffers live in the GLB BIN chunk). Raw `uri` keys are counted in the text
+ * No `uri` anywhere: DoRms only accepts items whose pictures and data live in the GLB BIN chunk. Raw `uri` keys are counted in the text
  * and must match what JSON.parse sees, so a duplicate key cannot hide an outside address from parsers that keep the first one.
  */
 function glbJsonIsSelfContained(text: string): boolean {
@@ -123,7 +122,7 @@ function glbJsonIsSelfContained(text: string): boolean {
     if (Array.isArray(value)) value.forEach(walk);
     else if (value && typeof value === "object") {
       for (const [key, child] of Object.entries(value)) {
-        if (key === "uri") { parsedUriKeys++; if (typeof child !== "string" || !DATA_IMAGE.test(child)) ok = false; }
+        if (key === "uri") { parsedUriKeys++; ok = false; }
         walk(child);
       }
     }
@@ -133,7 +132,75 @@ function glbJsonIsSelfContained(text: string): boolean {
 }
 
 // A 3MB file can still declare huge arrays or images. Same caps as the Jjongal desktop pet (measured on live items with wide margins).
-const MAX_ACCESSOR_BYTES = 48 * 1024 * 1024, MAX_ACCESSOR_COUNT = 500_000, MAX_IMAGES = 32, MAX_IMAGE_SIDE = 4096, MAX_MESHES = 1024, MAX_NODES = 4096;
+const MAX_ACCESSOR_BYTES = 48 * 1024 * 1024, MAX_ACCESSOR_COUNT = 500_000, MAX_MESHES = 1024;
+// The same rules DoRms applies when an item is uploaded (items DoRms serves already passed them; this re-checks before your
+// site or your members' browsers draw the file): 4 pictures of at most 1MB and 2048px, 200 parts, 256 draws, 40,000 triangles,
+// allowed extensions only (also hidden ones), no animations or morph targets.
+const MAX_IMAGES = 4, MAX_IMAGE_BYTES = 1024 * 1024, MAX_IMAGE_SIDE = 2048, MAX_NODES = 200, MAX_DRAWS = 256, MAX_TRIANGLES = 40_000;
+const ALLOWED_EXTENSIONS = new Set(["KHR_materials_emissive_strength", "KHR_texture_transform", "KHR_materials_unlit", "EXT_meshopt_compression", "KHR_mesh_quantization"]);
+const GLTF_ATTRIBUTE_NAME = /^(POSITION|NORMAL|TANGENT|TEXCOORD_\d+|COLOR_\d+|JOINTS_\d+|WEIGHTS_\d+|_[A-Z0-9_]+)$/;
+
+function extensionKeys(value: unknown, depth = 0, out: string[] = []): string[] {
+  if (depth > 12 || !value || typeof value !== "object") return out;
+  if (Array.isArray(value)) { for (const item of value) extensionKeys(item, depth + 1, out); return out; }
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (key === "extensions" && child && typeof child === "object") out.push(...Object.keys(child as object));
+    extensionKeys(child, depth + 1, out);
+  }
+  return out;
+}
+
+function itemShapeOk(raw: Record<string, unknown>): boolean {
+  const list = (key: string) => (raw[key] as unknown[] | undefined) ?? [];
+  const index = (value: unknown, size: number) => value === undefined || (Number.isSafeInteger(value) && (value as number) >= 0 && (value as number) < size);
+  const used = list("extensionsUsed"), declared = new Set(used);
+  for (const name of [...used, ...list("extensionsRequired")]) if (typeof name !== "string" || !ALLOWED_EXTENSIONS.has(name)) return false;
+  if (extensionKeys(raw).some((name) => !ALLOWED_EXTENSIONS.has(name) || !declared.has(name))) return false;
+  if (list("animations").length) return false;
+  const nodes = list("nodes"), meshes = list("meshes"), accessors = list("accessors");
+  if (nodes.length > MAX_NODES) return false;
+  for (const node of nodes) {
+    const n = node as { mesh?: unknown; skin?: unknown; children?: unknown } | null;
+    if (!n || typeof n !== "object" || !index(n.mesh, meshes.length) || !index(n.skin, list("skins").length)) return false;
+    if (n.children !== undefined && (!Array.isArray(n.children) || n.children.some((c) => !Number.isSafeInteger(c) || c < 0 || c >= nodes.length))) return false;
+  }
+  for (const scene of list("scenes")) {
+    const roots = (scene as { nodes?: unknown } | null)?.nodes;
+    if (!scene || typeof scene !== "object" || (roots !== undefined && (!Array.isArray(roots) || roots.some((r) => !Number.isSafeInteger(r) || r < 0 || r >= nodes.length)))) return false;
+  }
+  if (raw.scene !== undefined && !index(raw.scene, list("scenes").length)) return false;
+  const meshTriangles: number[] = [], meshDraws: number[] = [];
+  for (const mesh of meshes) {
+    const primitives = (mesh as { primitives?: unknown } | null)?.primitives;
+    if (!mesh || typeof mesh !== "object" || !Array.isArray(primitives)) return false;
+    let triangles = 0;
+    for (const p of primitives) {
+      const primitive = p as { attributes?: unknown; targets?: unknown; indices?: unknown; mode?: unknown } | null;
+      if (!primitive || typeof primitive !== "object" || (primitive.mode ?? 4) !== 4) return false;
+      if (primitive.targets !== undefined && (!Array.isArray(primitive.targets) || primitive.targets.length)) return false;
+      const attributes = primitive.attributes as Record<string, unknown> | undefined;
+      if (!attributes || typeof attributes !== "object" || Array.isArray(attributes) || Object.keys(attributes).some((name) => !GLTF_ATTRIBUTE_NAME.test(name))) return false;
+      const at = primitive.indices ?? attributes.POSITION;
+      if (!Number.isSafeInteger(at) || (at as number) < 0 || (at as number) >= accessors.length) return false;
+      const drawn = Math.floor((Number((accessors[at as number] as { count?: unknown } | null)?.count) || 0) / 3);
+      if (drawn < 1) return false;
+      triangles += drawn;
+    }
+    meshTriangles.push(triangles);
+    meshDraws.push(primitives.length);
+  }
+  // A mesh used by many parts is drawn that many times, so count per part.
+  let triangles = 0, draws = 0;
+  for (const node of nodes) {
+    const mesh = (node as { mesh?: number }).mesh;
+    if (mesh === undefined) continue;
+    triangles += meshTriangles[mesh] ?? 0;
+    draws += meshDraws[mesh] ?? 0;
+  }
+  if (draws > MAX_DRAWS || triangles > MAX_TRIANGLES) return false;
+  const images = list("images") as { mimeType?: unknown }[];
+  return images.length <= MAX_IMAGES && images.every((image) => image && typeof image === "object" && ["image/png", "image/jpeg", "image/webp"].includes(String(image.mimeType)));
+}
 const COMPONENT_BYTES: Record<number, number> = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
 const TYPE_SIZE: Record<string, number> = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT2: 4, MAT3: 9, MAT4: 16 };
 const isCount = (v: unknown, max: number) => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= max;
@@ -156,7 +223,6 @@ function imageSize(d: Uint8Array): { width: number; height: number } | null {
     return null;
   }
   const ascii = (at: number, n: number) => String.fromCharCode(...d.subarray(at, at + n));
-  if (d.length >= 28 && ascii(1, 6) === "KTX 20") return { width: view.getUint32(20, true), height: Math.max(1, view.getUint32(24, true)) };
   if (d.length >= 30 && ascii(0, 4) === "RIFF" && ascii(8, 4) === "WEBP") {
     const kind = ascii(12, 4);
     if (kind === "VP8 ") return { width: view.getUint16(26, true) & 0x3fff, height: view.getUint16(28, true) & 0x3fff };
@@ -169,17 +235,7 @@ function imageSize(d: Uint8Array): { width: number; height: number } | null {
 type Gltf = { accessors?: { count?: unknown; type?: unknown; componentType?: unknown; bufferView?: unknown; sparse?: { count?: unknown } }[]; bufferViews?: { buffer?: unknown; byteOffset?: unknown; byteLength?: unknown }[]; buffers?: unknown[]; images?: { bufferView?: unknown; uri?: unknown }[]; meshes?: unknown[]; nodes?: unknown[] };
 
 // Loaders read these lists by index, so an object like {"0": …} in place of an array would skip the count caps. Lists must be arrays.
-const GLTF_LISTS = ["accessors", "animations", "bufferViews", "buffers", "cameras", "images", "materials", "meshes", "nodes", "samplers", "scenes", "skins", "textures"];
-
-function dataImageBytes(uri: string): Uint8Array | null {
-  const comma = uri.indexOf(",");
-  if (comma < 0) return null;
-  try {
-    return Uint8Array.from(atob(uri.slice(comma + 1)), (c) => c.charCodeAt(0));
-  } catch {
-    return null;
-  }
-}
+const GLTF_LISTS = ["accessors", "animations", "bufferViews", "buffers", "cameras", "images", "materials", "meshes", "nodes", "samplers", "scenes", "skins", "textures", "extensionsUsed", "extensionsRequired"];
 
 function withinBudget(json: Gltf, bytes: ArrayBuffer, bin: { start: number; length: number } | undefined): boolean {
   if (!json || typeof json !== "object" || Array.isArray(json)) return false;
@@ -187,6 +243,7 @@ function withinBudget(json: Gltf, bytes: ArrayBuffer, bin: { start: number; leng
     const value = (json as Record<string, unknown>)[key];
     if (value !== undefined && !Array.isArray(value)) return false;
   }
+  if (!itemShapeOk(json as Record<string, unknown>)) return false;
   if (!isCount(json.meshes?.length ?? 0, MAX_MESHES) || !isCount(json.nodes?.length ?? 0, MAX_NODES) || (json.buffers?.length ?? 0) > 1) return false;
   // The single buffer is the BIN chunk. A buffer with its own uri would make the loader read other bytes than the ones checked here.
   for (const buffer of json.buffers ?? []) {
@@ -204,17 +261,11 @@ function withinBudget(json: Gltf, bytes: ArrayBuffer, bin: { start: number; leng
   const images = json.images ?? [];
   if (images.length > MAX_IMAGES) return false;
   for (const image of images) {
-    if (!image || typeof image !== "object") return false;
-    if (image.uri !== undefined) {
-      // data: pictures are small in bytes but can still declare a huge size: read their header too
-      const dims = typeof image.uri === "string" ? imageSize(dataImageBytes(image.uri) ?? new Uint8Array()) : null;
-      if (!dims || dims.width > MAX_IMAGE_SIDE || dims.height > MAX_IMAGE_SIDE) return false;
-      continue;
-    }
+    if (!image || typeof image !== "object" || image.uri !== undefined) return false;
     const view = Number.isInteger(image.bufferView) ? json.bufferViews?.[image.bufferView as number] : undefined;
     if (!view || view.buffer !== 0 || !bin) return false;
     const start = Number(view.byteOffset ?? 0), length = Number(view.byteLength);
-    if (!Number.isInteger(start) || !Number.isInteger(length) || start < 0 || length <= 0 || start + length > bin.length) return false;
+    if (!Number.isInteger(start) || !Number.isInteger(length) || start < 0 || length <= 0 || length > MAX_IMAGE_BYTES || start + length > bin.length) return false;
     const dims = imageSize(new Uint8Array(bytes, bin.start + start, length));
     if (!dims || dims.width > MAX_IMAGE_SIDE || dims.height > MAX_IMAGE_SIDE) return false;
   }
