@@ -142,6 +142,7 @@ test("item proxy: only item-id shapes, maps DoRms refusals, streams only glb wit
     glb({ ...tri, nodes: [{ mesh: "0" }] }),
     glb({ ...tri, nodes: [{ mesh: 0, skin: 0 }], skins: [{ joints: Array.from({ length: 100_000 }, () => 0) }] }),
     glb({ ...tri, nodes: [{ mesh: 0, children: [1] }, { children: [0] }] }),
+    glb({ ...tri, samplers: Array.from({ length: 100 }, () => ({})), textures: Array.from({ length: 100 }, (_, i) => ({ source: 0, sampler: i })) }),
     new Uint8Array([1, 2, 3]),
   ]) {
     state.fetch = () => new Response(bytes, { status: 200, headers: { "content-type": "model/gltf-binary" } });

@@ -137,6 +137,8 @@ const MAX_ACCESSOR_BYTES = 48 * 1024 * 1024, MAX_ACCESSOR_COUNT = 500_000, MAX_M
 // site or your members' browsers draw the file): 4 pictures of at most 1MB and 2048px, 200 parts, 256 draws, 40,000 triangles,
 // allowed extensions only (also hidden ones), no animations or morph targets.
 const MAX_IMAGES = 4, MAX_IMAGE_BYTES = 1024 * 1024, MAX_IMAGE_SIDE = 2048, MAX_NODES = 200, MAX_DRAWS = 256, MAX_TRIANGLES = 40_000;
+// One picture with different samplers is uploaded to the GPU once per sampler. Live items use at most 4 textures, 4 samplers, 51 materials.
+const MAX_TEXTURES = 8, MAX_SAMPLERS = 8, MAX_MATERIALS = 128;
 const ALLOWED_EXTENSIONS = new Set(["KHR_materials_emissive_strength", "KHR_texture_transform", "KHR_materials_unlit", "EXT_meshopt_compression", "KHR_mesh_quantization"]);
 const GLTF_ATTRIBUTE_NAME = /^(POSITION|NORMAL|TANGENT|TEXCOORD_\d+|COLOR_\d+|JOINTS_\d+|WEIGHTS_\d+|_[A-Z0-9_]+)$/;
 
@@ -157,6 +159,7 @@ function itemShapeOk(raw: Record<string, unknown>): boolean {
   for (const name of [...used, ...list("extensionsRequired")]) if (typeof name !== "string" || !ALLOWED_EXTENSIONS.has(name)) return false;
   if (extensionKeys(raw).some((name) => !ALLOWED_EXTENSIONS.has(name) || !declared.has(name))) return false;
   if (list("animations").length) return false;
+  if (list("textures").length > MAX_TEXTURES || list("samplers").length > MAX_SAMPLERS || list("materials").length > MAX_MATERIALS) return false;
   const nodes = list("nodes"), meshes = list("meshes"), accessors = list("accessors");
   if (nodes.length > MAX_NODES) return false;
   for (const node of nodes) {
