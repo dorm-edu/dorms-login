@@ -100,6 +100,38 @@ export async function getDormsDoreumi(): Promise<DormsDoreumi | null> {
   return outfit;
 }
 
+const DATA_IMAGE = /^data:image\/(png|jpeg|webp|ktx2);base64,/i;
+
+/**
+ * Every `uri` anywhere must be a data: image (buffers live in the GLB BIN chunk). Raw `uri` keys are counted in the text
+ * and must match what JSON.parse sees, so a duplicate key cannot hide an outside address from parsers that keep the first one.
+ */
+function glbJsonIsSelfContained(text: string): boolean {
+  let json: unknown;
+  try { json = JSON.parse(text); } catch { return false; }
+  let rawUriKeys = 0;
+  const token = /"(?:[^"\\]|\\.)*"/g;
+  const colon = /\s*:/y;
+  for (let m = token.exec(text); m; m = token.exec(text)) {
+    colon.lastIndex = token.lastIndex;
+    if (!colon.test(text)) continue;
+    try { if (JSON.parse(m[0]) === "uri") rawUriKeys++; } catch { return false; }
+  }
+  let parsedUriKeys = 0;
+  let ok = true;
+  const walk = (value: unknown): void => {
+    if (Array.isArray(value)) value.forEach(walk);
+    else if (value && typeof value === "object") {
+      for (const [key, child] of Object.entries(value)) {
+        if (key === "uri") { parsedUriKeys++; if (typeof child !== "string" || !DATA_IMAGE.test(child)) ok = false; }
+        walk(child);
+      }
+    }
+  };
+  walk(json);
+  return ok && rawUriKeys === parsedUriKeys;
+}
+
 /** Item files are made by other teachers: only pass GLBs that do not point at outside addresses (buffers/images by URL). */
 function selfContainedGlb(bytes: ArrayBuffer): boolean {
   try {
@@ -117,9 +149,7 @@ function selfContainedGlb(bytes: ArrayBuffer): boolean {
       if (offset + length > end) return false;
       if (type === 0x4e4f534a) {
         jsonChunks++;
-        const json = JSON.parse(decoder.decode(new Uint8Array(bytes, offset, length))) as { buffers?: { uri?: unknown }[]; images?: { uri?: unknown }[] };
-        if ((json.buffers ?? []).some((b) => b.uri !== undefined)) return false;
-        if (!(json.images ?? []).every((i) => i.uri === undefined || (typeof i.uri === "string" && /^data:image\/(png|jpeg|webp|ktx2);base64,/i.test(i.uri)))) return false;
+        if (!glbJsonIsSelfContained(decoder.decode(new Uint8Array(bytes, offset, length)))) return false;
       }
       offset += length;
     }

@@ -96,6 +96,18 @@ test("item proxy: only item-id shapes, maps DoRms refusals, streams only glb wit
       new DataView(joined.buffer).setUint32(8, joined.length, true);
       return joined;
     })(),
+    // 같은 키를 두 번 써서 바깥 주소를 숨긴 파일(앞 키를 읽는 도구도 있다)
+    (() => {
+      let text = '{"asset":{"version":"2.0"},"images":[{"uri":"https://evil.test/t.png"}],"images":[]}';
+      while (text.length % 4) text += " ";
+      const body = new TextEncoder().encode(text);
+      const out = new Uint8Array(20 + body.length);
+      const view = new DataView(out.buffer);
+      view.setUint32(0, 0x46546c67, true); view.setUint32(4, 2, true); view.setUint32(8, out.length, true);
+      view.setUint32(12, body.length, true); view.setUint32(16, 0x4e4f534a, true);
+      out.set(body, 20);
+      return out;
+    })(),
     new Uint8Array([1, 2, 3]),
   ]) {
     state.fetch = () => new Response(bytes, { status: 200, headers: { "content-type": "model/gltf-binary" } });
