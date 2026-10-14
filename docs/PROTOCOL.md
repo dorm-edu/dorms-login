@@ -95,7 +95,7 @@ No refresh-token, single-logout, token introspection or complete OIDC conformanc
 
 ### 동작
 
-`model`에는 기본 동작 26개(Idle, Walk, Run, Wave, Showcase, HeadTilt, Sit, Think, Bow, Stretch 등)가 들어 있습니다. `motions`는 동작 목록(JSON)이며 각 항목의 `url`은 three.js `AnimationClip.toJSON` 형식이고 트랙 이름은 위 뼈 이름(`body.quaternion` 등)입니다. `AnimationClip.parse()` 결과를 `AnimationMixer`로 같은 모형에 재생하면 됩니다. 모형·동작 파일은 공개 자료라 로그인 없이 받을 수 있습니다.
+`model`에는 기본 동작 26개(Idle, Walk, Run, Wave, Showcase, HeadTilt, Sit, Think, Bow, Stretch 등)가 들어 있습니다. 이 26개는 도름스가 화면에 틀기 전에 관절을 다듬고 바닥 높이를 맞추는 원본 클립입니다. 그대로 틀면 눕기·앉기처럼 몸을 낮추는 동작이 바닥과 어긋날 수 있으니, 매 프레임 몸의 가장 낮은 곳이 바닥에 닿도록 `DoreumiRig` 높이를 맞춰 주세요(가로 이동 x·z 는 0 으로 두면 도름스와 같습니다). `motions`는 동작 목록(JSON)이며 각 항목의 `url`은 three.js `AnimationClip.toJSON` 형식이고 트랙 이름은 위 뼈 이름(`body.quaternion` 등)입니다. `AnimationClip.parse()` 결과를 `AnimationMixer`로 같은 모형에 재생하면 됩니다. 모형·동작 파일은 공개 자료라 로그인 없이 받을 수 있습니다.
 
 - 목록 항목의 `ambient: true`는 도름스가 저절로 틀어도 어울린다고 고른 동작이고, `props`가 있는 동작은 줄넘기 같은 소품을 쥔 모습을 가정합니다. 가만히 있을 때 무작위로 틀려면 `ambient`이면서 `props`가 비어 있는 동작을 고르면 자연스럽습니다.
 - 동작은 원래 모형의 뼈대 기준입니다. 다른 뼈대로 옮겨 쓰면 회전 중심(관절 위치)을 원래 모형과 같은 자리에 두고, 한 뼈에 두 관절을 합치지 마세요. 어긋나면 팔을 크게 들 때 몸과 옷이 따로 움직입니다. 원래 모형 그대로 재생하면 신경 쓸 일이 없습니다.
