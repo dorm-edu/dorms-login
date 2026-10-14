@@ -15,9 +15,9 @@
 AI가 실행하는 명령입니다. npm에 게시한 패키지가 아니므로 GitHub 주소를 그대로 사용합니다.
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.1.tar.gz detect
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.1.tar.gz init --client-id '<사이트 id>' --site 'https://example.com'
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.1.tar.gz doctor
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz detect
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz init --client-id '<사이트 id>' --site 'https://example.com'
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz doctor
 ```
 
 `init`은 로그인 파일 6개와 설치 기록 `.dorms-login.json`을 만들고 `jose`를 설치합니다. 환경 변수는 공개값인 `DORMS_CLIENT_ID`, `DORMS_SITE_URL` 두 개입니다. 배포 환경에도 같은 값을 넣어야 합니다. 기존 파일은 덮어쓰지 않습니다.
@@ -81,7 +81,7 @@ v0.2.0의 `getDormsUser()`, `requireDormsUser()`, `refreshDormsUser()`는 호출
 공개 도구의 새 판을 내도 각 사이트에 복사해 둔 코드는 자동으로 바뀌지 않습니다. AI에게 다음 명령으로 확인하고 업데이트를 마쳐 달라고 요청하세요.
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.1.tar.gz upgrade
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz upgrade
 ```
 
 설치 기록과 내용이 같은 파일만 자동으로 바꿉니다. 직접 고친 파일은 보존하고 `.dorms-login/review/`에 새 참고본과 차이를 남깁니다. v0.1.0에는 설치 기록이 없으므로 AI가 참고본의 변경을 기존 코드와 합쳐야 합니다. 검토할 파일이 남으면 명령은 종료 코드 `1`을 반환합니다.
@@ -113,7 +113,9 @@ const outfit = await getDormsDoreumi();
 
 아이템 3D 파일은 `asset`(내 사이트의 `/api/auth/dorms/doreumi/items/<id>`)으로 받습니다. 도름스 토큰은 서버에만 있고 브라우저로 나가지 않아요. 그리는 법은 [연동 계약의 도름이 착장 절](./docs/PROTOCOL.md#도름이-착장-선택-기능-v040)에 있습니다.
 
-착장은 지금 입은 것만 전달돼요. 아이템은 만든 선생님의 작품이라 산 선생님의 도름이에 입혀 보여 줄 때만 쓰고, 따로 모아 두거나 나눠 주지 마세요. 도름이 캐릭터·모형·동작은 아인T 선생님의 작품이고 CC BY-NC 4.0입니다. 화면에 '도름이 © 아인T, CC BY-NC 4.0' 표기를 남겨 주세요.
+착장은 지금 입은 것만 전달돼요. 아이템은 만든 선생님의 작품이라 산 선생님의 도름이에 입혀 보여 줄 때만 쓰고, 따로 모아 두거나 나눠 주지 마세요.
+
+도름이 캐릭터·모형·표정·동작은 아인T 선생님이 CC BY-NC 4.0으로 공개한 작품이에요([원본](https://github.com/ainssam/doreumi-desktop-pet)). 내 사이트에 들인 도름이는 도름스와 상관없이 마음대로 고치고 새 동작을 더해 써도 돼요. 화면에 '도름이 © 아인T, CC BY-NC 4.0' 표기를 남기고 고친 곳이 있으면 고쳤다고 함께 적어 주세요. 돈을 버는 데 쓰려면 아인T 선생님과 따로 약속해야 해요. 동작 파일만 따로 떼어 나눠 주지는 마세요.
 
 [복사해서 AI에 부탁하기](USE-WITH-AI.md#도름이-착장도-불러오기)
 

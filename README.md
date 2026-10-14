@@ -7,9 +7,9 @@ Add a **Sign in with DoRms** button to a teacher-built site. Teachers register a
 ## Install
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.1.tar.gz detect
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.1.tar.gz init --client-id '<site id>' --site 'https://example.com'
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.1.tar.gz doctor
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz detect
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz init --client-id '<site id>' --site 'https://example.com'
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz doctor
 ```
 
 Automatic installation supports Node.js 22+, TypeScript, Next.js 15+ App Router, and sites served from the root of an HTTPS origin. Subpaths/basePath, Pages Router, JavaScript-only projects and browser-only apps need a manual integration using [the HTTP contract](./docs/PROTOCOL.md). Generated `app/` and `src/app/` projects are production-build tested against Next.js 15.5.26. Other framework versions need their own build and integration checks.
@@ -29,7 +29,7 @@ Email scope is obtained from the current provider configuration at login. Defaul
 ## Upgrade existing sites
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.1.tar.gz upgrade
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz upgrade
 ```
 
 Only unmodified files recorded in the manifest are replaced automatically. Customized or legacy v0.1.0 files remain untouched; new reference files and diffs are written to `.dorms-login/review/`, and the command exits with code `1`. Merge the changes, run type/build checks and actual login/revocation tests, then run `upgrade --accept-reviewed` to record the review. This does not overwrite custom files, and future upgrades continue to preserve them. Publishing a new tool version does not update already installed sites by itself.
@@ -40,7 +40,7 @@ DoRms never sends passwords or its own session cookies to your site. Members con
 
 ## Optional Doreumi outfit (v0.4.0)
 
-Show the member's Doreumi as dressed on DoRms (equipped items and three colors), and optionally play Doreumi motions. Turn on "도름이 착장도 받기" for the site on dorms.school/connect, then run `upgrade --doreumi` (or `init --doreumi`). Call `getDormsDoreumi()` on the server; it returns `null` unless the member allowed the outfit. Item files are served through `/api/auth/dorms/doreumi/items/<id>` so the DoRms token never reaches the browser. Use outfits only to show that member's own Doreumi. Doreumi (character, model, motions) is by AinT, CC BY-NC 4.0; keep the attribution visible. See [PROTOCOL.md](./docs/PROTOCOL.md#도름이-착장-선택-기능-v040).
+Show the member's Doreumi as dressed on DoRms (equipped items and three colors), and optionally play Doreumi motions. Turn on "도름이 착장도 받기" for the site on dorms.school/connect, then run `upgrade --doreumi` (or `init --doreumi`). Call `getDormsDoreumi()` on the server; it returns `null` unless the member allowed the outfit. Item files are served through `/api/auth/dorms/doreumi/items/<id>` so the DoRms token never reaches the browser. Use outfits and item files only to show that member's own Doreumi; items are other teachers' work. Doreumi itself (character, model, expressions, motions) is published by AinT under CC BY-NC 4.0 ([original](https://github.com/ainssam/doreumi-desktop-pet)): once Doreumi is in your app you may edit it, add your own motions and use it however you like, independently of DoRms. Keep "도름이 © 아인T, CC BY-NC 4.0" visible, mark your changes, keep it non-commercial (commercial use needs a separate agreement with AinT), and don't redistribute the motion files on their own. See [PROTOCOL.md](./docs/PROTOCOL.md#도름이-착장-선택-기능-v040).
 
 ## Optional donations (v0.3.0)
 
