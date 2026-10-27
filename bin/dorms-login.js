@@ -170,7 +170,7 @@ function install(upgrade) {
     writeFileSync(file.dest, file.text);
     hashes[file.rel] = hash(file.text); written.push(file.rel);
   }
-  if (held.length) say(`  함께 바뀌어야 하는 파일이라 바꾸지 않고 참고본으로 남겼어요: ${held.join(", ")}. 직접 고친 파일과 같이 .dorms-login/review 에서 합쳐 주세요.`);
+  if (held.length) say(`  함께 바뀌어야 하는 파일이라 만들거나 바꾸지 않고 참고본으로 남겼어요: ${held.join(", ")}. 직접 고친 파일과 같이 .dorms-login/review 에서 합쳐 주세요.`);
   if (donations && donationsAtLogin) {
     const lib = files.find((file) => endsWithAny(file.rel, ["lib/dormsDonation.ts"]));
     const installedMode = lib && existsSync(lib.dest) ? /const DONATION_MODE: string = "(at-login|separate)"/.exec(readFileSync(lib.dest, "utf8"))?.[1] ?? "separate" : null;

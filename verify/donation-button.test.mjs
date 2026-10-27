@@ -71,7 +71,11 @@ test("v0.5 at-login mode: the stock button never leaves the page when permission
   }
   assert.equal(atLogin.state.redirects.length, 0, "no navigation, so a live camera keeps running");
   assert.ok(atLogin.state.messages.some((value) => typeof value === "string" && value.includes("한 번 허용해야 보낼 수 있어요")));
-  assert.ok(atLogin.state.messages.includes("/api/auth/dorms/donation/start?next=%2Flive%3Fhost%3D1"), "a new-tab permission link is offered instead of leaving the page");
+  assert.ok(atLogin.state.messages.some((value) => value && value.href === "/api/auth/dorms/donation/start?next=%2Fdorms-donation-allowed" && value.label === "새 창에서 허용하기"), "a new-tab permission link lands on a closing page, never on this page again");
+  atLogin.state.fetch = async () => new Response(JSON.stringify({ reason: "authentication_required" }), { status: 401 });
+  await atLogin.click();
+  assert.equal(atLogin.state.redirects.length, 0, "even an expired login does not leave the page");
+  assert.ok(atLogin.state.messages.some((value) => value && value.href === "/api/auth/dorms/start?next=%2Fdorms-donation-allowed" && value.label === "새 창에서 로그인하기"));
   const separate = button("separate");
   separate.state.fetch = async () => new Response(JSON.stringify({ reason: "consent_required" }), { status: 403 });
   await separate.click();

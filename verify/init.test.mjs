@@ -195,7 +195,7 @@ test("a customized login or donation lib holds the linked login routes back so t
   writeFileSync(libPath, readFileSync(libPath, "utf8") + "\n// customized by the site\n");
   const result = run(site, "upgrade", "--donations-at-login", "--no-install");
   assert.equal(result.status, 1);
-  assert.match(result.stdout, /함께 바뀌어야 하는 파일이라 바꾸지 않고 참고본으로 남겼어요/);
+  assert.match(result.stdout, /함께 바뀌어야 하는 파일이라 만들거나 바꾸지 않고 참고본으로 남겼어요/);
   assert.match(result.stdout, /'로그인할 때 함께 허락'은 \.dorms-login\/review 의 참고본을 합친 뒤에 켜져요/);
   assert.equal(readFileSync(startPath, "utf8"), startBefore, "start route not overwritten while its lib is customized");
   assert.equal(readFileSync(callbackPath, "utf8"), callbackBefore);

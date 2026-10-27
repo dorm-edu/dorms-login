@@ -21,8 +21,9 @@ const STAY_ON_PAGE = DONATION_MODE === "at-login";
 export function DormsDonationButton({ recipientId, amount = 1, onSuccess, className, style }: { recipientId: string; amount?: number; className?: string; style?: CSSProperties; onSuccess?: (result: { transferId: string; amount: number }) => void }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  // at-login mode: permission is missing, so offer it in a NEW tab. This page (and a live camera) is never unloaded.
-  const [allowHref, setAllowHref] = useState("");
+  // at-login mode: permission or login is missing, so offer it in a NEW tab that lands on /dorms-donation-allowed.
+  // This page (and a live camera) is never unloaded, and the new tab never opens this page a second time.
+  const [allow, setAllow] = useState<{ href: string; label: string } | null>(null);
   const pending = useRef<{ requestId: string; recipientId: string; amount: number } | null>(null);
   const locked = useRef(false);
   async function send() {
@@ -31,17 +32,18 @@ export function DormsDonationButton({ recipientId, amount = 1, onSuccess, classN
       setMessage("앞서 보낸 요청의 결과가 아직 확인되지 않았어요. 이전 대상과 도름 수로 돌아가 결과를 확인해 주세요.");
       return;
     }
-    locked.current = true; setBusy(true); setMessage(""); setAllowHref("");
+    locked.current = true; setBusy(true); setMessage(""); setAllow(null);
     try {
       // Keep this exact request after timeouts: the provider returns the original committed result.
       pending.current ??= { recipientId, amount, requestId: crypto.randomUUID() };
       const response = await fetch("/api/auth/dorms/donation/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pending.current) });
       const result = await response.json();
       if (!response.ok) {
-        if (STAY_ON_PAGE && ["consent_required", "invalid_token"].includes(result.reason)) {
+        if (STAY_ON_PAGE && ["consent_required", "invalid_token", "authentication_required"].includes(result.reason)) {
           pending.current = null;
-          setAllowHref(`/api/auth/dorms/donation/start?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`);
-          setMessage("도름네이션을 한 번 허용해야 보낼 수 있어요."); return;
+          const login = result.reason === "authentication_required";
+          setAllow({ href: `${login ? "/api/auth/dorms/start" : "/api/auth/dorms/donation/start"}?next=${encodeURIComponent("/dorms-donation-allowed")}`, label: login ? "새 창에서 로그인하기" : "새 창에서 허용하기" });
+          setMessage(login ? "다시 로그인해야 보낼 수 있어요." : "도름네이션을 한 번 허용해야 보낼 수 있어요."); return;
         }
         if (["consent_required", "invalid_token", "authentication_required"].includes(result.reason)) {
           const path = result.reason === "authentication_required" ? "/api/auth/dorms/start" : "/api/auth/dorms/donation/start";
@@ -56,5 +58,5 @@ export function DormsDonationButton({ recipientId, amount = 1, onSuccess, classN
     } catch { setMessage("결과를 확인하지 못했어요. 다시 누르면 같은 요청의 결과를 확인해요."); }
     finally { locked.current = false; setBusy(false); }
   }
-  return <span style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 8, maxWidth: "100%", wordBreak: "keep-all", overflowWrap: "break-word" }}><button type="button" className={className} style={{ minHeight: 44, padding: "10px 14px", font: "inherit", flexShrink: 0, ...style }} disabled={busy} onClick={send}>{busy ? "확인 중…" : `${amount}도름 보내기`}</button><span role="status" aria-live="polite" style={{ minWidth: 0 }}>{message}</span>{allowHref && <a href={allowHref} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: 44 }}>새 창에서 허용하기</a>}</span>;
+  return <span style={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", gap: 8, maxWidth: "100%", wordBreak: "keep-all", overflowWrap: "break-word" }}><button type="button" className={className} style={{ minHeight: 44, padding: "10px 14px", font: "inherit", flexShrink: 0, ...style }} disabled={busy} onClick={send}>{busy ? "확인 중…" : `${amount}도름 보내기`}</button><span role="status" aria-live="polite" style={{ minWidth: 0 }}>{message}</span>{allow && <a href={allow.href} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: 44 }}>{allow.label}</a>}</span>;
 }
