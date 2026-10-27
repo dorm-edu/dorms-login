@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, symlinkSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, symlinkSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -195,8 +195,8 @@ test("a customized login or donation lib holds the linked login routes back so t
   writeFileSync(libPath, readFileSync(libPath, "utf8") + "\n// customized by the site\n");
   const result = run(site, "upgrade", "--donations-at-login", "--no-install");
   assert.equal(result.status, 1);
-  assert.match(result.stdout, /함께 바뀌어야 하는 파일이라 덮어쓰지 않고 참고본으로 남겼어요/);
-  assert.match(result.stdout, /'로그인할 때 함께 허락'은 위 참고본을 합친 뒤에 켜져요/);
+  assert.match(result.stdout, /함께 바뀌어야 하는 파일이라 바꾸지 않고 참고본으로 남겼어요/);
+  assert.match(result.stdout, /'로그인할 때 함께 허락'은 \.dorms-login\/review 의 참고본을 합친 뒤에 켜져요/);
   assert.equal(readFileSync(startPath, "utf8"), startBefore, "start route not overwritten while its lib is customized");
   assert.equal(readFileSync(callbackPath, "utf8"), callbackBefore);
   assert.equal(readFileSync(buttonPath, "utf8"), buttonBefore, "the stock button keeps the mode of the lib it is held with");
@@ -204,4 +204,38 @@ test("a customized login or donation lib holds the linked login routes back so t
   // After merging, --accept-reviewed writes the owned linked files normally.
   assert.equal(run(site, "upgrade", "--donations-at-login", "--accept-reviewed", "--no-install").status, 0);
   assert.notEqual(readFileSync(startPath, "utf8"), startBefore);
+  // Once the merged lib is at-login, later upgrades no longer claim it is inactive.
+  writeFileSync(libPath, readFileSync(libPath, "utf8").replace('const DONATION_MODE: string = "separate";', 'const DONATION_MODE: string = "at-login";'));
+  const later = run(site, "upgrade", "--no-install");
+  assert.doesNotMatch(later.stdout, /합친 뒤에 켜져요/);
+});
+
+test("restyling only the stock donation button never holds the login lib back", (t) => {
+  const site = scaffold(t); assert.equal(init(site, "--donations").status, 0);
+  const buttonPath = path.join(site, "components/DormsDonationButton.tsx");
+  const loginPath = path.join(site, "lib/dormsLogin.ts");
+  writeFileSync(buttonPath, readFileSync(buttonPath, "utf8") + "\n// restyled\n");
+  const manifestPath = path.join(site, ".dorms-login.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const olderLogin = readFileSync(loginPath, "utf8") + "\n// older release\n";
+  writeFileSync(loginPath, olderLogin); manifest.files["lib/dormsLogin.ts"] = hash(olderLogin);
+  writeFileSync(manifestPath, JSON.stringify(manifest));
+  const result = run(site, "upgrade", "--no-install");
+  assert.doesNotMatch(result.stdout, /함께 바뀌어야 하는 파일/);
+  assert.notEqual(readFileSync(loginPath, "utf8"), olderLogin, "login lib still gets its update");
+  assert.match(readFileSync(buttonPath, "utf8"), /restyled/, "the customized button is preserved");
+});
+
+test("a held group also keeps brand-new linked files in review, so the site keeps building", (t) => {
+  const site = scaffold(t); assert.equal(init(site).status, 0);
+  const loginPath = path.join(site, "lib/dormsLogin.ts");
+  writeFileSync(loginPath, readFileSync(loginPath, "utf8") + "\n// customized login\n");
+  const result = run(site, "upgrade", "--donations-at-login", "--no-install");
+  assert.equal(result.status, 1);
+  assert.equal(existsSync(path.join(site, "lib/dormsDonation.ts")), false, "the new donation lib is not written next to the held login lib");
+  assert.ok(existsSync(path.join(site, ".dorms-login/review/lib/dormsDonation.ts")));
+  // Nothing outside review may import the donation lib that is not there yet.
+  const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((entry) => entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)]);
+  const importers = [...walk(path.join(site, "app")), ...(existsSync(path.join(site, "components")) ? walk(path.join(site, "components")) : [])].filter((file) => /lib\/dormsDonation["']/.test(readFileSync(file, "utf8")));
+  assert.deepEqual(importers, []);
 });

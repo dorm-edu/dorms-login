@@ -133,20 +133,26 @@ function install(upgrade) {
   // 로그인 lib·도름네이션 lib·로그인 start/callback·기본 도름네이션 버튼은 서로의 새 이름과 방식을 따르므로 함께 바뀌어야 한다.
   // 이 중 하나를 사용자가 고쳐 참고본으로 남기면 나머지도 덮어쓰지 않고 참고본으로 남긴다(일부만 바뀌어 빌드가 깨지거나
   // '로그인할 때 함께'가 조용히 꺼지지 않게). --accept-reviewed 로 합쳤다고 기록할 때는 평소대로 쓴다.
-  const LINKED = ["lib/dormsLogin.ts", "lib/dormsDonation.ts", "api/auth/dorms/start/route.ts", "api/auth/dorms/callback/route.ts", "components/DormsDonationButton.tsx"];
-  const linked = (rel) => LINKED.some((suffix) => rel === suffix || rel.endsWith(`/${suffix}`));
+  // 버튼은 묶음을 따라가기만 한다: 버튼만 꾸민 사이트가 로그인 lib 업데이트까지 보류되지 않게, 보류를 일으키는 것은 lib·route 넷뿐이다.
+  const TRIGGERS = ["lib/dormsLogin.ts", "lib/dormsDonation.ts", "api/auth/dorms/start/route.ts", "api/auth/dorms/callback/route.ts"];
+  const LINKED = [...TRIGGERS, "components/DormsDonationButton.tsx"];
+  const endsWithAny = (rel, list) => list.some((suffix) => rel === suffix || rel.endsWith(`/${suffix}`));
+  const linked = (rel) => endsWithAny(rel, LINKED);
   const customized = (file) => {
     const current = existsSync(file.dest) ? readFileSync(file.dest, "utf8") : null;
     return current !== null && current !== file.text && !(upgrade && previous?.files?.[file.rel] === hash(current));
   };
-  const holdLinked = !flag("accept-reviewed") && files.some((file) => linked(file.rel) && customized(file));
+  const holdLinked = !flag("accept-reviewed") && files.some((file) => endsWithAny(file.rel, TRIGGERS) && customized(file));
   const held = [];
   for (const file of files) {
     const current = existsSync(file.dest) ? readFileSync(file.dest, "utf8") : null;
     if (current === file.text) { hashes[file.rel] = hash(file.text); continue; }
     const owned = current !== null && previous?.files?.[file.rel] === hash(current);
-    if (current !== null && holdLinked && linked(file.rel) && owned && upgrade) held.push(file.rel);
-    if (current !== null && (!(upgrade && owned) || (holdLinked && linked(file.rel)))) {
+    // 보류 중에는 묶음 파일, 새로 생길 파일, 도름네이션 lib 를 불러 쓰는 파일도 참고본으로만 둔다.
+    // (로그인만 쓰던 사이트에 도름네이션을 더하다 보류되면, 옛 lib 옆에 새 파일만 생겨 빌드가 깨진다.)
+    const hold = holdLinked && (linked(file.rel) || current === null || /lib\/dormsDonation["']/.test(file.text));
+    if (hold && (current === null || (owned && upgrade))) held.push(file.rel);
+    if ((current !== null && !(upgrade && owned)) || hold) {
       const candidate = path.join(root, ".dorms-login/review", file.rel);
       safeWritePath(candidate); safeWritePath(`${candidate}.diff`);
       mkdirSync(path.dirname(candidate), { recursive: true });
@@ -164,8 +170,12 @@ function install(upgrade) {
     writeFileSync(file.dest, file.text);
     hashes[file.rel] = hash(file.text); written.push(file.rel);
   }
-  if (held.length) say(`  함께 바뀌어야 하는 파일이라 덮어쓰지 않고 참고본으로 남겼어요: ${held.join(", ")}. 직접 고친 파일과 같이 .dorms-login/review 에서 합쳐 주세요.`);
-  if (holdLinked && donations && donationsAtLogin) say("  '로그인할 때 함께 허락'은 위 참고본을 합친 뒤에 켜져요. 그 전까지는 지금 방식대로 동작해요.");
+  if (held.length) say(`  함께 바뀌어야 하는 파일이라 바꾸지 않고 참고본으로 남겼어요: ${held.join(", ")}. 직접 고친 파일과 같이 .dorms-login/review 에서 합쳐 주세요.`);
+  if (donations && donationsAtLogin) {
+    const lib = files.find((file) => endsWithAny(file.rel, ["lib/dormsDonation.ts"]));
+    const installedMode = lib && existsSync(lib.dest) ? /const DONATION_MODE: string = "(at-login|separate)"/.exec(readFileSync(lib.dest, "utf8"))?.[1] ?? "separate" : null;
+    if (installedMode !== "at-login") say("  '로그인할 때 함께 허락'은 .dorms-login/review 의 참고본을 합친 뒤에 켜져요. 그 전까지는 이 사이트에 설치돼 있던 방식대로 동작해요.");
+  }
   ensureEnv(".env.local", id, site); ensureEnv(".env.example", id, site);
   const gi = path.join(root, ".gitignore");
   let giText = existsSync(gi) ? readFileSync(gi, "utf8") : "";
