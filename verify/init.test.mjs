@@ -190,7 +190,8 @@ test("a customized login or donation lib holds the linked login routes back so t
     writeFileSync(file, old); manifest.files[rel] = hash(old);
   }
   writeFileSync(manifestPath, JSON.stringify(manifest));
-  const startBefore = readFileSync(startPath, "utf8"), callbackBefore = readFileSync(callbackPath, "utf8");
+  const buttonPath = path.join(site, "components/DormsDonationButton.tsx");
+  const startBefore = readFileSync(startPath, "utf8"), callbackBefore = readFileSync(callbackPath, "utf8"), buttonBefore = readFileSync(buttonPath, "utf8");
   writeFileSync(libPath, readFileSync(libPath, "utf8") + "\n// customized by the site\n");
   const result = run(site, "upgrade", "--donations-at-login", "--no-install");
   assert.equal(result.status, 1);
@@ -198,6 +199,7 @@ test("a customized login or donation lib holds the linked login routes back so t
   assert.match(result.stdout, /'로그인할 때 함께 허락'은 위 참고본을 합친 뒤에 켜져요/);
   assert.equal(readFileSync(startPath, "utf8"), startBefore, "start route not overwritten while its lib is customized");
   assert.equal(readFileSync(callbackPath, "utf8"), callbackBefore);
+  assert.equal(readFileSync(buttonPath, "utf8"), buttonBefore, "the stock button keeps the mode of the lib it is held with");
   assert.match(readFileSync(path.join(site, ".dorms-login/review/app/api/auth/dorms/start/route.ts"), "utf8"), /beginDonationLogin/);
   // After merging, --accept-reviewed writes the owned linked files normally.
   assert.equal(run(site, "upgrade", "--donations-at-login", "--accept-reviewed", "--no-install").status, 0);

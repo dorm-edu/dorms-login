@@ -130,10 +130,10 @@ function install(upgrade) {
   for (const p of [...files.map((f) => f.dest), manifestPath, path.join(root, ".env.local"), path.join(root, ".env.example"), path.join(root, ".gitignore"), path.join(root, ".dorms-login/review")]) safeWritePath(p);
   const hashes = { ...previous?.files };
   const pending = [], written = [];
-  // 로그인 lib·도름네이션 lib·로그인 start/callback 은 서로의 새 이름을 불러 쓰므로 함께 바뀌어야 한다.
+  // 로그인 lib·도름네이션 lib·로그인 start/callback·기본 도름네이션 버튼은 서로의 새 이름과 방식을 따르므로 함께 바뀌어야 한다.
   // 이 중 하나를 사용자가 고쳐 참고본으로 남기면 나머지도 덮어쓰지 않고 참고본으로 남긴다(일부만 바뀌어 빌드가 깨지거나
   // '로그인할 때 함께'가 조용히 꺼지지 않게). --accept-reviewed 로 합쳤다고 기록할 때는 평소대로 쓴다.
-  const LINKED = ["lib/dormsLogin.ts", "lib/dormsDonation.ts", "api/auth/dorms/start/route.ts", "api/auth/dorms/callback/route.ts"];
+  const LINKED = ["lib/dormsLogin.ts", "lib/dormsDonation.ts", "api/auth/dorms/start/route.ts", "api/auth/dorms/callback/route.ts", "components/DormsDonationButton.tsx"];
   const linked = (rel) => LINKED.some((suffix) => rel === suffix || rel.endsWith(`/${suffix}`));
   const customized = (file) => {
     const current = existsSync(file.dest) ? readFileSync(file.dest, "utf8") : null;
