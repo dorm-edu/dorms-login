@@ -100,8 +100,11 @@ async function requestJson(url: string, init: RequestInit = {}, fallback: DormsF
   }
 }
 
-/** `donations` is the site's DoRms donation approval ("approved", "pending", "none", ...). The optional donation add-on reads it. */
-export async function beginDormsLogin(requestUrl: string, next?: string | null): Promise<{ authorizeUrl: string; cookie: { name: string; value: string; maxAge: number }; donations: string | null }> {
+/**
+ * `donations` is the site's DoRms donation approval ("approved", "pending", "none", ...) and `donationsAtLogin` says whether
+ * DoRms accepts donation permission inside the login request. The optional donation add-on reads both.
+ */
+export async function beginDormsLogin(requestUrl: string, next?: string | null): Promise<{ authorizeUrl: string; cookie: { name: string; value: string; maxAge: number }; donations: string | null; donationsAtLogin: boolean }> {
   const id = clientId();
   const callback = callbackUrl(requestUrl);
   const configUrl = new URL(`${API_ORIGIN}/api/sso/clients/${encodeURIComponent(id)}/configuration`);
@@ -122,7 +125,8 @@ export async function beginDormsLogin(requestUrl: string, next?: string | null):
   url.searchParams.set("code_challenge", createHash("sha256").update(flow.verifier, "ascii").digest("base64url"));
   url.searchParams.set("code_challenge_method", "S256");
   const donations = config.donations && typeof config.donations === "object" && typeof (config.donations as { status?: unknown }).status === "string" ? String((config.donations as { status: string }).status) : null;
-  return { authorizeUrl: url.toString(), cookie: { name: FLOW_COOKIE, value: Buffer.from(JSON.stringify(flow)).toString("base64url"), maxAge: FLOW_TTL_SECONDS }, donations };
+  const donationsAtLogin = !!config.donations && typeof config.donations === "object" && (config.donations as { atLogin?: unknown }).atLogin === true;
+  return { authorizeUrl: url.toString(), cookie: { name: FLOW_COOKIE, value: Buffer.from(JSON.stringify(flow)).toString("base64url"), maxAge: FLOW_TTL_SECONDS }, donations, donationsAtLogin };
 }
 
 export function parseFlowCookie(value: string | undefined): LoginFlow | null {

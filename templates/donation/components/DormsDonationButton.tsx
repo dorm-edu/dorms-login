@@ -14,6 +14,9 @@ const messages: Record<string, string> = {
   access_denied: "지금은 도름네이션을 사용할 수 없어요.",
   forbidden: "페이지를 새로 열고 다시 시도해 주세요.",
 };
+/** Written by the installer. In "at-login" mode the button never leaves the page: permission is given at login (v0.5.0). */
+const DONATION_MODE: string = "__DORMS_DONATION_MODE__";
+const STAY_ON_PAGE = DONATION_MODE === "at-login";
 /** Pass the recipient's DoRms member ID, never an email or a browser-supplied sender ID. */
 export function DormsDonationButton({ recipientId, amount = 1, onSuccess, className, style }: { recipientId: string; amount?: number; className?: string; style?: CSSProperties; onSuccess?: (result: { transferId: string; amount: number }) => void }) {
   const [busy, setBusy] = useState(false);
@@ -33,6 +36,10 @@ export function DormsDonationButton({ recipientId, amount = 1, onSuccess, classN
       const response = await fetch("/api/auth/dorms/donation/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pending.current) });
       const result = await response.json();
       if (!response.ok) {
+        if (STAY_ON_PAGE && ["consent_required", "invalid_token"].includes(result.reason)) {
+          pending.current = null;
+          setMessage("이 앱에서 도름을 보내려면 다시 로그인하면서 도름네이션을 허용해 주세요."); return;
+        }
         if (["consent_required", "invalid_token", "authentication_required"].includes(result.reason)) {
           const path = result.reason === "authentication_required" ? "/api/auth/dorms/start" : "/api/auth/dorms/donation/start";
           window.location.assign(`${path}?next=${encodeURIComponent(location.pathname + location.search + location.hash)}`); return;

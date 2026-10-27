@@ -77,12 +77,13 @@ async function exchangeDonationCode(input: { requestUrl: string; loginToken: str
   return { value: encode({ token: body.donation_token, session: digest(input.loginToken), expiresAt }), maxAge: expiresAt - now() };
 }
 /**
- * Start a DoRms login that also requests donation permission (v0.5.0). Only an approved site asks for it;
- * otherwise this is the normal login and `donationFlow` is null. The donation verifier differs from the login verifier.
+ * Start a DoRms login that also requests donation permission (v0.5.0). Only an approved site asks for it, and only when
+ * DoRms says it accepts donation permission at login (an older or rolled-back DoRms gets a normal login, never a broken one).
+ * Otherwise this is the normal login and `donationFlow` is null. The donation verifier differs from the login verifier.
  */
 export async function beginDonationLogin(requestUrl: string, next?: string | null) {
   const login = await beginDormsLogin(requestUrl, next);
-  if (login.donations !== "approved") return { authorizeUrl: login.authorizeUrl, cookie: login.cookie, donationFlow: null as string | null };
+  if (login.donations !== "approved" || !login.donationsAtLogin) return { authorizeUrl: login.authorizeUrl, cookie: login.cookie, donationFlow: null as string | null };
   const url = new URL(login.authorizeUrl);
   const state = url.searchParams.get("state");
   if (!state) return { authorizeUrl: login.authorizeUrl, cookie: login.cookie, donationFlow: null as string | null };

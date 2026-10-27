@@ -154,10 +154,11 @@ test("doreumi scope is requested only when DoRms says the site enabled the outfi
 
 test("login start reports the site's donation approval for the optional donation add-on", async () => {
   const { sdk, state } = load();
-  for (const [donations, expected] of [[{ status: "approved" }, "approved"], [{ status: "pending" }, "pending"], [undefined, null], ["approved", null]]) {
+  for (const [donations, expected, atLogin] of [[{ status: "approved", atLogin: true }, "approved", true], [{ status: "approved" }, "approved", false], [{ status: "pending", atLogin: "yes" }, "pending", false], [undefined, null, false], ["approved", null, false]]) {
     state.fetch = () => response({ active: true, scopes: ["openid", "profile"], ...(donations === undefined ? {} : { donations }) });
     const started = await sdk.beginDormsLogin("http://localhost:3000/start");
     assert.equal(started.donations, expected);
+    assert.equal(started.donationsAtLogin, atLogin);
     assert.equal(new URL(started.authorizeUrl).searchParams.get("scope"), "openid profile", "login itself never asks for donations");
   }
 });

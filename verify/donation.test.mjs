@@ -11,10 +11,10 @@ const REQUEST = "cb5f4d8c-7e2a-4c1b-9f0d-2a6e8c4b1d3e";
 const compiled = ts.transpileModule(readFileSync(new URL("../templates/donation/lib/dormsDonation.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const response = (body, status = 200) => new Response(JSON.stringify(body), { status });
 function load() {
-  const state = { donations: "approved", jar: { dorms_session: "login-token" }, origin: "https://example.test", site: "same-origin", user: { id: MEMBER, expiresAt: Math.floor(Date.now() / 1000) + 3600 }, calls: [], fetch: () => response({ donation_token: "T".repeat(43), expires_in: 3600, subject: MEMBER }) };
+  const state = { donations: "approved", donationsAtLogin: true, jar: { dorms_session: "login-token" }, origin: "https://example.test", site: "same-origin", user: { id: MEMBER, expiresAt: Math.floor(Date.now() / 1000) + 3600 }, calls: [], fetch: () => response({ donation_token: "T".repeat(43), expires_in: 3600, subject: MEMBER }) };
   const module = { exports: {} };
   const mocks = { "server-only": {}, "next/headers": { cookies: async () => ({ get: (key) => state.jar[key] ? { value: state.jar[key] } : undefined }), headers: async () => new Headers({ ...(state.origin ? { origin: state.origin } : {}), "sec-fetch-site": state.site }) }, "./dormsLogin": { SESSION_COOKIE: "dorms_session", getDormsUser: async () => state.user,
-    beginDormsLogin: async () => ({ authorizeUrl: `https://dorms.school/api/sso/authorize?${new URLSearchParams({ response_type: "code", client_id: REQUEST, scope: "openid profile", state: "login-state-0123456789", code_challenge: "L".repeat(43), code_challenge_method: "S256" })}`, cookie: { name: "dorms_flow", value: "flow", maxAge: 600 }, donations: state.donations }), safeDormsNext: (value) => value?.startsWith("/") && !value.startsWith("//") ? value : "/", callbackUrl: () => "https://example.test/api/auth/dorms/callback" } };
+    beginDormsLogin: async () => ({ authorizeUrl: `https://dorms.school/api/sso/authorize?${new URLSearchParams({ response_type: "code", client_id: REQUEST, scope: "openid profile", state: "login-state-0123456789", code_challenge: "L".repeat(43), code_challenge_method: "S256" })}`, cookie: { name: "dorms_flow", value: "flow", maxAge: 600 }, donations: state.donations, donationsAtLogin: state.donationsAtLogin }), safeDormsNext: (value) => value?.startsWith("/") && !value.startsWith("//") ? value : "/", callbackUrl: () => "https://example.test/api/auth/dorms/callback" } };
   vm.runInNewContext(compiled, { module, exports: module.exports, require: (name) => mocks[name] ?? require(name), Buffer, URL, AbortSignal, Date,
     process: { env: { NODE_ENV: "production", DORMS_CLIENT_ID: REQUEST, DORMS_SITE_URL: "https://example.test" } },
     fetch: async (url, init) => { state.calls.push({ url, init }); return state.fetch(url, init); },
@@ -123,8 +123,8 @@ test("v0.5 login with donation asks for it only on an approved site, with its ow
   assert.equal(params.get("donation_code_challenge"), require("node:crypto").createHash("sha256").update(saved.verifier).digest("base64url"));
   assert.notEqual(params.get("donation_code_challenge"), params.get("code_challenge"));
   assert.equal(login.cookie.name, "dorms_flow");
-  for (const donations of ["pending", "none", null]) {
-    state.donations = donations;
+  for (const [donations, atLogin] of [["pending", true], ["none", true], [null, true], ["approved", false]]) {
+    state.donations = donations; state.donationsAtLogin = atLogin; // an older or rolled-back DoRms that does not announce atLogin gets a plain login
     const plain = await sdk.beginDonationLogin("https://example.test/api/auth/dorms/start", "/");
     assert.equal(plain.donationFlow, null);
     assert.equal(new URL(plain.authorizeUrl).searchParams.get("scope"), "openid profile");

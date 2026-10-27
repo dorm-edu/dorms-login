@@ -175,3 +175,31 @@ test("the donation mode is chosen at install: none, separate (--donations) or at
   assert.match(lib(plain), /"at-login"/);
   assert.match(readFileSync(path.join(plain, "app/api/auth/dorms/callback/route.ts"), "utf8"), /finishDonationLogin/);
 });
+
+test("a customized login or donation lib holds the linked login routes back so the site keeps building", (t) => {
+  const site = scaffold(t);
+  assert.equal(init(site, "--donations").status, 0);
+  const libPath = path.join(site, "lib/dormsDonation.ts");
+  const startPath = path.join(site, "app/api/auth/dorms/start/route.ts");
+  const callbackPath = path.join(site, "app/api/auth/dorms/callback/route.ts");
+  // Pretend this site came from an older release: the routes and lib are owned but differ from the new templates.
+  const manifestPath = path.join(site, ".dorms-login.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  for (const [file, rel] of [[startPath, "app/api/auth/dorms/start/route.ts"], [callbackPath, "app/api/auth/dorms/callback/route.ts"]]) {
+    const old = readFileSync(file, "utf8").replace(/\n$/, "\n// older release\n");
+    writeFileSync(file, old); manifest.files[rel] = hash(old);
+  }
+  writeFileSync(manifestPath, JSON.stringify(manifest));
+  const startBefore = readFileSync(startPath, "utf8"), callbackBefore = readFileSync(callbackPath, "utf8");
+  writeFileSync(libPath, readFileSync(libPath, "utf8") + "\n// customized by the site\n");
+  const result = run(site, "upgrade", "--donations-at-login", "--no-install");
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /함께 바뀌어야 하는 파일이라 덮어쓰지 않고 참고본으로 남겼어요/);
+  assert.match(result.stdout, /'로그인할 때 함께 허락'은 위 참고본을 합친 뒤에 켜져요/);
+  assert.equal(readFileSync(startPath, "utf8"), startBefore, "start route not overwritten while its lib is customized");
+  assert.equal(readFileSync(callbackPath, "utf8"), callbackBefore);
+  assert.match(readFileSync(path.join(site, ".dorms-login/review/app/api/auth/dorms/start/route.ts"), "utf8"), /beginDonationLogin/);
+  // After merging, --accept-reviewed writes the owned linked files normally.
+  assert.equal(run(site, "upgrade", "--donations-at-login", "--accept-reviewed", "--no-install").status, 0);
+  assert.notEqual(readFileSync(startPath, "utf8"), startBefore);
+});
