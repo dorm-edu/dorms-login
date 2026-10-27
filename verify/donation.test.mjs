@@ -11,9 +11,10 @@ const REQUEST = "cb5f4d8c-7e2a-4c1b-9f0d-2a6e8c4b1d3e";
 const compiled = ts.transpileModule(readFileSync(new URL("../templates/donation/lib/dormsDonation.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 const response = (body, status = 200) => new Response(JSON.stringify(body), { status });
 function load() {
-  const state = { jar: { dorms_session: "login-token" }, origin: "https://example.test", site: "same-origin", user: { id: MEMBER, expiresAt: Math.floor(Date.now() / 1000) + 3600 }, calls: [], fetch: () => response({ donation_token: "T".repeat(43), expires_in: 3600, subject: MEMBER }) };
+  const state = { donations: "approved", jar: { dorms_session: "login-token" }, origin: "https://example.test", site: "same-origin", user: { id: MEMBER, expiresAt: Math.floor(Date.now() / 1000) + 3600 }, calls: [], fetch: () => response({ donation_token: "T".repeat(43), expires_in: 3600, subject: MEMBER }) };
   const module = { exports: {} };
-  const mocks = { "server-only": {}, "next/headers": { cookies: async () => ({ get: (key) => state.jar[key] ? { value: state.jar[key] } : undefined }), headers: async () => new Headers({ ...(state.origin ? { origin: state.origin } : {}), "sec-fetch-site": state.site }) }, "./dormsLogin": { SESSION_COOKIE: "dorms_session", getDormsUser: async () => state.user, safeDormsNext: (value) => value?.startsWith("/") && !value.startsWith("//") ? value : "/", callbackUrl: () => "https://example.test/api/auth/dorms/callback" } };
+  const mocks = { "server-only": {}, "next/headers": { cookies: async () => ({ get: (key) => state.jar[key] ? { value: state.jar[key] } : undefined }), headers: async () => new Headers({ ...(state.origin ? { origin: state.origin } : {}), "sec-fetch-site": state.site }) }, "./dormsLogin": { SESSION_COOKIE: "dorms_session", getDormsUser: async () => state.user,
+    beginDormsLogin: async () => ({ authorizeUrl: `https://dorms.school/api/sso/authorize?${new URLSearchParams({ response_type: "code", client_id: REQUEST, scope: "openid profile", state: "login-state-0123456789", code_challenge: "L".repeat(43), code_challenge_method: "S256" })}`, cookie: { name: "dorms_flow", value: "flow", maxAge: 600 }, donations: state.donations }), safeDormsNext: (value) => value?.startsWith("/") && !value.startsWith("//") ? value : "/", callbackUrl: () => "https://example.test/api/auth/dorms/callback" } };
   vm.runInNewContext(compiled, { module, exports: module.exports, require: (name) => mocks[name] ?? require(name), Buffer, URL, AbortSignal, Date,
     process: { env: { NODE_ENV: "production", DORMS_CLIENT_ID: REQUEST, DORMS_SITE_URL: "https://example.test" } },
     fetch: async (url, init) => { state.calls.push({ url, init }); return state.fetch(url, init); },
@@ -109,4 +110,52 @@ test("token exchange proves current login while donation calls use only dedicate
   await sdk.getDonationStatus();
   assert.equal(state.calls.at(-1).init.headers.Authorization, `Bearer ${"T".repeat(43)}`);
   assert.equal(state.calls.at(-1).init.headers.Authorization.includes("login-token"), false);
+});
+
+test("v0.5 login with donation asks for it only on an approved site, with its own PKCE bound to the login state", async () => {
+  const { sdk, state } = load();
+  assert.equal(sdk.DONATION_AT_LOGIN, false, "the raw template is the separate mode until the installer writes the choice");
+  const login = await sdk.beginDonationLogin("https://example.test/api/auth/dorms/start", "/room/1");
+  const params = new URL(login.authorizeUrl).searchParams;
+  assert.equal(params.get("scope"), "openid profile donation");
+  const saved = JSON.parse(Buffer.from(login.donationFlow, "base64url").toString());
+  assert.equal(saved.state, "login-state-0123456789");
+  assert.equal(params.get("donation_code_challenge"), require("node:crypto").createHash("sha256").update(saved.verifier).digest("base64url"));
+  assert.notEqual(params.get("donation_code_challenge"), params.get("code_challenge"));
+  assert.equal(login.cookie.name, "dorms_flow");
+  for (const donations of ["pending", "none", null]) {
+    state.donations = donations;
+    const plain = await sdk.beginDonationLogin("https://example.test/api/auth/dorms/start", "/");
+    assert.equal(plain.donationFlow, null);
+    assert.equal(new URL(plain.authorizeUrl).searchParams.get("scope"), "openid profile");
+    assert.equal(new URL(plain.authorizeUrl).searchParams.get("donation_code_challenge"), null);
+  }
+});
+test("v0.5 login callback trades the donation code with the new login token and binds the cookie to it", async () => {
+  const { sdk, state } = load();
+  const login = await sdk.beginDonationLogin("https://example.test/api/auth/dorms/start", "/room/1");
+  const saved = JSON.parse(Buffer.from(login.donationFlow, "base64url").toString());
+  const loginExp = Math.floor(Date.now() / 1000) + 1800;
+  const input = { idToken: "fresh-login-token", subject: MEMBER, expiresAt: loginExp, state: saved.state, code: "D".repeat(43), flow: login.donationFlow };
+  const pass = await sdk.finishDonationLogin("https://example.test/api/auth/dorms/callback", input);
+  const call = state.calls.at(-1);
+  assert.match(call.url, /\/api\/connect\/donations\/token$/);
+  assert.equal(call.init.headers.Authorization, "Bearer fresh-login-token");
+  assert.deepEqual(JSON.parse(call.init.body), { client_id: REQUEST, redirect_uri: "https://example.test/api/auth/dorms/donation/callback", code: "D".repeat(43), code_verifier: saved.verifier });
+  const cookie = JSON.parse(Buffer.from(pass.value, "base64url").toString());
+  assert.equal(cookie.session, require("node:crypto").createHash("sha256").update("fresh-login-token").digest("base64url"));
+  assert.ok(cookie.expiresAt <= loginExp && pass.maxAge <= 1800, "never outlives the login");
+  // Once the new login cookie is in place, sends use the dedicated credential.
+  state.jar = { dorms_session: "fresh-login-token", dorms_donation: pass.value };
+  state.fetch = () => response(status);
+  assert.equal((await sdk.getDonationStatus()).subject, MEMBER);
+  const calls = state.calls.length;
+  await assert.rejects(sdk.finishDonationLogin("https://example.test/api/auth/dorms/callback", { ...input, state: "other-state-0123456789" }), reason("authentication_required"));
+  await assert.rejects(sdk.finishDonationLogin("https://example.test/api/auth/dorms/callback", { ...input, code: null }), reason("consent_required"));
+  await assert.rejects(sdk.finishDonationLogin("https://example.test/api/auth/dorms/callback", { ...input, flow: undefined }), reason("authentication_required"));
+  const stale = Buffer.from(JSON.stringify({ ...saved, createdAt: saved.createdAt - 601 })).toString("base64url");
+  await assert.rejects(sdk.finishDonationLogin("https://example.test/api/auth/dorms/callback", { ...input, flow: stale }), reason("authentication_required"));
+  assert.equal(state.calls.length, calls, "bad callbacks never exchange a code");
+  state.fetch = () => response({ donation_token: "T".repeat(43), expires_in: 3600, subject: RECIPIENT });
+  await assert.rejects(sdk.finishDonationLogin("https://example.test/api/auth/dorms/callback", input), reason("temporarily_unavailable"), "a pass for another member is refused");
 });

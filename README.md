@@ -7,9 +7,9 @@ Add a **Sign in with DoRms** button to a teacher-built site. Teachers register a
 ## Install
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz detect
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz init --client-id '<site id>' --site 'https://example.com'
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz doctor
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz detect
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz init --client-id '<site id>' --site 'https://example.com'
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz doctor
 ```
 
 Automatic installation supports Node.js 22+, TypeScript, Next.js 15+ App Router, and sites served from the root of an HTTPS origin. Subpaths/basePath, Pages Router, JavaScript-only projects and browser-only apps need a manual integration using [the HTTP contract](./docs/PROTOCOL.md). Generated `app/` and `src/app/` projects are production-build tested against Next.js 15.5.26. Other framework versions need their own build and integration checks.
@@ -29,7 +29,7 @@ Email scope is obtained from the current provider configuration at login. Defaul
 ## Upgrade existing sites
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz upgrade
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz upgrade
 ```
 
 Only unmodified files recorded in the manifest are replaced automatically. Customized or legacy v0.1.0 files remain untouched; new reference files and diffs are written to `.dorms-login/review/`, and the command exits with code `1`. Merge the changes, run type/build checks and actual login/revocation tests, then run `upgrade --accept-reviewed` to record the review. This does not overwrite custom files, and future upgrades continue to preserve them. Publishing a new tool version does not update already installed sites by itself.
@@ -48,4 +48,6 @@ Let people sign in to your app with DoRms and give each other DoRms there. First
 
 Give that prompt to your coding assistant. Run `upgrade --donations` for an existing installation, or add `--donations` to `init`. Default login installation and scopes are unchanged. Site administrator approval and one-time member consent are required before sending. Each transfer decreases the sender's cumulative DoRms and increases the recipient's, affecting rankings. Received amounts count toward weekly and monthly rankings; sent amounts count toward the cheer captain ranking. Recipients can also spend the DoRms in the shop. The limit is 3 DoRms per member per KST calendar day across all apps. This accounting is handled by the provider, so sites that already installed donations get it without reinstalling.
 
-See [the copy-paste AI prompt](USE-WITH-AI.md#도름네이션도-붙이기) and [the donation protocol](docs/PROTOCOL.md#도름네이션-선택-기능-v030). Production credentials stay in host-only Secure HttpOnly cookies. Modified integration files are preserved for review during upgrades.
+**Choose the mode when you build (v0.5.0).** Login only (no flag), donations with separate permission (`--donations`, asked on the first send), or donation permission at login (`--donations-at-login`). With the last mode every DoRms login of the site also grants donation permission, so sends never leave the page while the login lasts: live video, calls and games keep running. Button design and wording are always up to your app. Members can still choose login only on the DoRms consent screen, and an app that is not approved yet gets a normal login. Switch with `upgrade --donations` or `upgrade --donations-at-login`.
+
+See [the copy-paste AI prompt](USE-WITH-AI.md#도름네이션도-붙이기), [the donation protocol](docs/PROTOCOL.md#도름네이션-선택-기능-v030) and [donation at login](docs/PROTOCOL.md#로그인과-함께-도름네이션-허락받기-v050). Production credentials stay in host-only Secure HttpOnly cookies. Modified integration files are preserved for review during upgrades.

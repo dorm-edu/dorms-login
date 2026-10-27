@@ -15,9 +15,9 @@
 AI가 실행하는 명령입니다. npm에 게시한 패키지가 아니므로 GitHub 주소를 그대로 사용합니다.
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz detect
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz init --client-id '<사이트 id>' --site 'https://example.com'
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz doctor
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz detect
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz init --client-id '<사이트 id>' --site 'https://example.com'
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz doctor
 ```
 
 `init`은 로그인 파일 6개와 설치 기록 `.dorms-login.json`을 만들고 `jose`를 설치합니다. 환경 변수는 공개값인 `DORMS_CLIENT_ID`, `DORMS_SITE_URL` 두 개입니다. 배포 환경에도 같은 값을 넣어야 합니다. 기존 파일은 덮어쓰지 않습니다.
@@ -81,7 +81,7 @@ v0.2.0의 `getDormsUser()`, `requireDormsUser()`, `refreshDormsUser()`는 호출
 공개 도구의 새 판을 내도 각 사이트에 복사해 둔 코드는 자동으로 바뀌지 않습니다. AI에게 다음 명령으로 확인하고 업데이트를 마쳐 달라고 요청하세요.
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.4.2.tar.gz upgrade
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz upgrade
 ```
 
 설치 기록과 내용이 같은 파일만 자동으로 바꿉니다. 직접 고친 파일은 보존하고 `.dorms-login/review/`에 새 참고본과 차이를 남깁니다. v0.1.0에는 설치 기록이 없으므로 AI가 참고본의 변경을 기존 코드와 합쳐야 합니다. 검토할 파일이 남으면 명령은 종료 코드 `1`을 반환합니다.
@@ -127,4 +127,6 @@ const outfit = await getDormsDoreumi();
 
 복사한 프롬프트를 코딩 AI에 전달하세요. 기존 로그인에 `upgrade --donations`를 실행하면 전송 도우미와 버튼을 추가합니다. 신규 설치는 `init --donations`를 사용합니다. 선택하지 않으면 로그인 기능만 설치됩니다. 실제로 보내려면 관리자 승인과 이용자의 첫 도름 사용 허용이 필요합니다. 모든 앱을 합쳐 한 사람당 하루 최대 3도름, 한국 시간 자정 기준입니다. 보내면 내 누적 도름이 줄고 받은 사람의 누적 도름이 늘어 랭킹에도 반영됩니다. 받은 양은 주간·월간 랭킹에, 보낸 양은 응원단장에 집계됩니다. 받은 도름은 상점에서도 쓸 수 있어요. 도름스 서버가 계산하므로 이미 도름네이션을 설치한 사이트는 재설치 없이 적용됩니다.
 
-[복사해서 AI에 부탁하기](USE-WITH-AI.md#도름네이션도-붙이기) · [다른 환경의 연동 안내](docs/PROTOCOL.md#도름네이션-선택-기능-v030)
+**방식은 개발할 때 고릅니다 (v0.5.0)**: 도름스로 로그인만(옵션 없음), 도름네이션을 따로 허락(`--donations`, 처음 보낼 때 도름스에서 한 번 허락), 로그인할 때 도름네이션까지 허락(`--donations-at-login`). 마지막 방식은 그 사이트의 도름스 로그인이 늘 도름네이션 허락까지 함께 받아, 로그인이 유지되는 동안 보낼 때 화면이 바뀌지 않습니다. 라이브 방송·화상 통화·게임처럼 페이지를 떠나면 안 되는 앱에 쓰세요. 버튼 모양과 문구는 어느 방식이든 앱이 정합니다. 회원은 도름스 허락 화면에서 로그인만 고를 수도 있고, 승인 전인 앱은 평소 로그인과 같습니다. `upgrade --donations`·`upgrade --donations-at-login` 으로 방식을 바꿉니다.
+
+[복사해서 AI에 부탁하기](USE-WITH-AI.md#도름네이션도-붙이기) · [다른 환경의 연동 안내](docs/PROTOCOL.md#도름네이션-선택-기능-v030) · [로그인할 때 함께 허락받기](docs/PROTOCOL.md#로그인과-함께-도름네이션-허락받기-v050)

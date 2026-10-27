@@ -28,7 +28,7 @@ test("install matrix resolves real files regardless of aliases or app placement"
     const imp = /from "([^"]*dormsLogin)"/.exec(readFileSync(route, "utf8"))[1];
     assert.ok(existsSync(path.resolve(path.dirname(route), imp) + ".ts"));
     assert.equal(readFileSync(path.join(dir, src ? "src/lib/dormsLogin.ts" : "lib/dormsLogin.ts"), "utf8").includes("__DORMS_"), false);
-    assert.equal(JSON.parse(readFileSync(path.join(dir, ".dorms-login.json"), "utf8")).version, "0.4.2");
+    assert.equal(JSON.parse(readFileSync(path.join(dir, ".dorms-login.json"), "utf8")).version, "0.5.0");
   }
 });
 
@@ -75,7 +75,7 @@ test("safe upgrade replaces owned unmodified files and preserves customized file
   assert.equal(readFileSync(lib, "utf8"), original); assert.equal(readFileSync(button, "utf8"), custom);
   assert.ok(existsSync(path.join(dir, ".dorms-login/review/components/DormsLoginButton.tsx.diff")));
   assert.equal(run(dir, "upgrade", "--accept-reviewed", "--no-install").status, 0);
-  assert.equal(JSON.parse(readFileSync(manifest, "utf8")).version, "0.4.2");
+  assert.equal(JSON.parse(readFileSync(manifest, "utf8")).version, "0.5.0");
   assert.equal(run(dir, "upgrade", "--no-install").status, 1, "future upgrades must keep custom files protected");
   assert.equal(readFileSync(button, "utf8"), custom);
 });
@@ -140,4 +140,38 @@ test("--doreumi installs the outfit helper and routes, and upgrade keeps it", (t
   assert.equal(JSON.parse(readFileSync(path.join(dir, ".dorms-login.json"), "utf8")).doreumi, true);
   assert.equal(run(dir, "upgrade", "--no-install").status, 0);
   assert.ok(existsSync(path.join(dir, "src/lib/dormsDoreumi.ts")));
+});
+
+test("the donation mode is chosen at install: none, separate (--donations) or at login (--donations-at-login)", (t) => {
+  const manifest = (dir) => JSON.parse(readFileSync(path.join(dir, ".dorms-login.json"), "utf8"));
+  const lib = (dir) => readFileSync(path.join(dir, "lib/dormsDonation.ts"), "utf8");
+  // 1) Login only: no donation files, plain login routes.
+  const plain = scaffold(t); assert.equal(init(plain).status, 0);
+  assert.equal(existsSync(path.join(plain, "lib/dormsDonation.ts")), false);
+  assert.doesNotMatch(readFileSync(path.join(plain, "app/api/auth/dorms/callback/route.ts"), "utf8"), /donation/i);
+  assert.doesNotMatch(readFileSync(path.join(plain, "app/api/auth/dorms/start/route.ts"), "utf8"), /donation/i);
+  // 2) Separate permission: donation-aware routes, mode written as "separate".
+  const separate = scaffold(t); assert.equal(init(separate, "--donations").status, 0);
+  assert.match(lib(separate), /const DONATION_MODE: string = "separate";/);
+  assert.equal(manifest(separate).donationsAtLogin, false);
+  const start = readFileSync(path.join(separate, "app/api/auth/dorms/start/route.ts"), "utf8");
+  assert.match(start, /DONATION_AT_LOGIN\s*\?\s*await beginDonationLogin/);
+  assert.doesNotMatch(start, /searchParams\.get\("donation"\)/, "the login button never chooses the mode");
+  assert.match(readFileSync(path.join(separate, "app/api/auth/dorms/callback/route.ts"), "utf8"), /finishDonationLogin/);
+  assert.equal(lib(separate).includes("__DORMS_DONATION_MODE__"), false);
+  // 3) Permission at login.
+  const atLogin = scaffold(t); assert.equal(init(atLogin, "--donations-at-login").status, 0);
+  assert.match(lib(atLogin), /const DONATION_MODE: string = "at-login";/);
+  assert.equal(manifest(atLogin).donations, true);
+  assert.equal(manifest(atLogin).donationsAtLogin, true);
+  // The choice persists through a plain upgrade and can be switched explicitly.
+  assert.equal(run(atLogin, "upgrade", "--no-install").status, 0);
+  assert.match(lib(atLogin), /"at-login"/);
+  assert.equal(run(atLogin, "upgrade", "--donations", "--no-install").status, 0);
+  assert.match(lib(atLogin), /const DONATION_MODE: string = "separate";/);
+  assert.equal(manifest(atLogin).donationsAtLogin, false);
+  // An existing login-only site can move straight to the at-login mode.
+  assert.equal(run(plain, "upgrade", "--donations-at-login", "--no-install").status, 0);
+  assert.match(lib(plain), /"at-login"/);
+  assert.match(readFileSync(path.join(plain, "app/api/auth/dorms/callback/route.ts"), "utf8"), /finishDonationLogin/);
 });

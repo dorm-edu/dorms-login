@@ -1,11 +1,13 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { cookies, headers } from "next/headers";
-import { callbackUrl, getDormsUser, safeDormsNext, SESSION_COOKIE } from "./dormsLogin";
+import { beginDormsLogin, callbackUrl, getDormsUser, safeDormsNext, SESSION_COOKIE } from "./dormsLogin";
 
 const API = process.env.NODE_ENV !== "production" && /^https?:\/\/localhost(:\d+)?$/.test(process.env.DORMS_API_ORIGIN_DEV ?? "") ? process.env.DORMS_API_ORIGIN_DEV! : "https://dorms.school";
 export const DONATION_COOKIE = "dorms_donation";
 export const DONATION_FLOW_COOKIE = "dorms_donation_flow";
+/** Separate PKCE verifier for the donation code that comes back with a DoRms login (v0.5.0). */
+export const DONATION_LOGIN_FLOW_COOKIE = "dorms_donation_login_flow";
 const BASE = "/api/auth/dorms/donation";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const digest = (value: string) => createHash("sha256").update(value).digest("base64url");
@@ -18,8 +20,17 @@ export type DonationStatus = { subject: string; availableBalance: number; dailyR
 export type DonationResult = Omit<DonationStatus, "subject"> & { transferId: string; amount: number };
 type Flow = { state: string; verifier: string; next: string; createdAt: number; subject: string; session: string };
 type Credential = { token: string; session: string; expiresAt: number };
+type LoginFlow = { state: string; verifier: string; createdAt: number };
 export const donationCookieOptions = (maxAge: number) => ({ httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", maxAge: Math.max(0, Math.floor(maxAge)) });
 export const donationStartHref = (next = "/") => `${BASE}/start?next=${encodeURIComponent(safeDormsNext(next))}`;
+/**
+ * How this site asks for donation permission, chosen at install time (v0.5.0):
+ * `init/upgrade --donations` = "separate" (normal login, permission on the first send),
+ * `init/upgrade --donations-at-login` = "at-login" (every DoRms login of this site also asks for donation permission,
+ * so sends never leave the page while the login lasts). The installer writes the value below; change it with upgrade.
+ */
+const DONATION_MODE: string = "__DORMS_DONATION_MODE__";
+export const DONATION_AT_LOGIN = DONATION_MODE === "at-login";
 function decode<T>(value: string | undefined): T | null {
   if (!value || value.length > 3500 || !/^[A-Za-z0-9_-]+$/.test(value)) return null;
   try { return JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as T; } catch { return null; }
@@ -54,10 +65,41 @@ export async function finishDonation(requestUrl: string, code: string | null, st
   if (!flow || !state || state !== flow.state || !/^[A-Za-z0-9_-]{43}$/.test(flow.verifier) || flow.session !== current.hash || flow.subject !== current.user.id || !Number.isInteger(flow.createdAt) || flow.createdAt > now() + 30 || now() - flow.createdAt > 600) throw new DormsDonationError("authentication_required", 401);
   if (upstreamError) throw new DormsDonationError(/^[a-z_]{1,80}$/.test(upstreamError) ? upstreamError : "access_denied", upstreamError === "temporarily_unavailable" ? 503 : 403);
   if (!code || code.length > 2048) throw new DormsDonationError("authentication_required", 401);
-  const body = await request("token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${current.loginToken}` }, body: JSON.stringify({ client_id: process.env.DORMS_CLIENT_ID, redirect_uri: callback(requestUrl), code, code_verifier: flow.verifier }) });
-  if (body.subject !== current.user.id || typeof body.donation_token !== "string" || body.donation_token.length < 32 || body.donation_token.length > 1024 || typeof body.expires_in !== "number" || !Number.isInteger(body.expires_in) || body.expires_in <= 0) throw new DormsDonationError("temporarily_unavailable");
-  const expiresAt = Math.min(now() + body.expires_in, now() + 604800, current.user.expiresAt);
-  return { value: encode({ token: body.donation_token, session: current.hash, expiresAt }), maxAge: expiresAt - now(), next: safeDormsNext(flow.next) };
+  const pass = await exchangeDonationCode({ requestUrl, loginToken: current.loginToken, subject: current.user.id, loginExpiresAt: current.user.expiresAt, code, verifier: flow.verifier });
+  return { ...pass, next: safeDormsNext(flow.next) };
+}
+/** Trade a donation code for the server-only donation token, bound to this exact login token. */
+async function exchangeDonationCode(input: { requestUrl: string; loginToken: string; subject: string; loginExpiresAt: number; code: string; verifier: string }) {
+  const body = await request("token", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${input.loginToken}` }, body: JSON.stringify({ client_id: process.env.DORMS_CLIENT_ID, redirect_uri: callback(input.requestUrl), code: input.code, code_verifier: input.verifier }) });
+  if (body.subject !== input.subject || typeof body.donation_token !== "string" || body.donation_token.length < 32 || body.donation_token.length > 1024 || typeof body.expires_in !== "number" || !Number.isInteger(body.expires_in) || body.expires_in <= 0) throw new DormsDonationError("temporarily_unavailable");
+  const expiresAt = Math.min(now() + body.expires_in, now() + 604800, input.loginExpiresAt);
+  if (expiresAt <= now()) throw new DormsDonationError("authentication_required", 401);
+  return { value: encode({ token: body.donation_token, session: digest(input.loginToken), expiresAt }), maxAge: expiresAt - now() };
+}
+/**
+ * Start a DoRms login that also requests donation permission (v0.5.0). Only an approved site asks for it;
+ * otherwise this is the normal login and `donationFlow` is null. The donation verifier differs from the login verifier.
+ */
+export async function beginDonationLogin(requestUrl: string, next?: string | null) {
+  const login = await beginDormsLogin(requestUrl, next);
+  if (login.donations !== "approved") return { authorizeUrl: login.authorizeUrl, cookie: login.cookie, donationFlow: null as string | null };
+  const url = new URL(login.authorizeUrl);
+  const state = url.searchParams.get("state");
+  if (!state) return { authorizeUrl: login.authorizeUrl, cookie: login.cookie, donationFlow: null as string | null };
+  const flow: LoginFlow = { state, verifier: random(), createdAt: now() };
+  url.searchParams.set("scope", `${url.searchParams.get("scope") ?? "openid profile"} donation`);
+  url.searchParams.set("donation_code_challenge", digest(flow.verifier));
+  return { authorizeUrl: url.toString(), cookie: login.cookie, donationFlow: encode(flow) as string | null };
+}
+/**
+ * In the login callback, right after finishDormsLogin: turn the returned donation code into the donation cookie value.
+ * The login must still succeed when this throws; the donation button then asks for permission the usual way.
+ */
+export async function finishDonationLogin(requestUrl: string, input: { idToken: string; subject: string; expiresAt: number; state: string | null; code: string | null; flow: string | undefined }) {
+  const flow = decode<LoginFlow>(input.flow);
+  if (!flow || !input.state || flow.state !== input.state || !/^[A-Za-z0-9_-]{43}$/.test(flow.verifier) || !Number.isInteger(flow.createdAt) || flow.createdAt > now() + 30 || now() - flow.createdAt > 600) throw new DormsDonationError("authentication_required", 401);
+  if (!input.code || !/^[A-Za-z0-9_-]{43}$/.test(input.code)) throw new DormsDonationError("consent_required", 403);
+  return exchangeDonationCode({ requestUrl, loginToken: input.idToken, subject: input.subject, loginExpiresAt: input.expiresAt, code: input.code, verifier: flow.verifier });
 }
 async function credential() {
   const current = await session();

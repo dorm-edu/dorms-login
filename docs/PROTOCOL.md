@@ -128,4 +128,14 @@ No refresh-token, single-logout, token introspection or complete OIDC conformanc
 
 실패 응답의 `{reason}`과 HTTP 상태를 보존합니다. `authentication_required`는 로그인, `consent_required`는 최초 허용 안내로 처리합니다. 미신청이면 운영자가 `/connect`에서 해당 앱의 도름네이션 설치 프롬프트를 복사하도록 안내하고, 이미 신청했다면 관리자 승인을 기다리도록 안내합니다. 잔액 부족과 일일 한도는 각각 사용자 안내로 처리합니다. 429·5xx·연결 실패는 성공 여부 미확정이므로 같은 요청으로 재확인합니다. `doctor`는 사이트의 승인 상태를 확인하며 개별 회원 동의 여부는 그 회원의 실제 첫 사용에서 확인합니다.
 
+### 로그인과 함께 도름네이션 허락받기 (v0.5.0)
+
+도름스 로그인 한 번에 도름네이션 허락까지 받는 방식입니다. 로그인이 유지되는 동안 전송은 페이지 이동 없는 같은 출처 POST 하나로 끝납니다. 라이브 방송·화상 통화·게임처럼 페이지를 떠나면 안 되는 앱에 씁니다. 사이트가 개발할 때 고르며, 설치 도구는 `init/upgrade --donations-at-login` 으로 설치합니다(그 사이트의 모든 도름스 로그인이 이 방식으로 시작합니다). `--donations` 는 위의 따로 허락받는 방식입니다. 버튼 모양·문구는 어느 방식이든 사이트가 정합니다.
+
+- 시작: 사이트 설정(`/api/sso/clients/{id}/configuration`)의 `donations.status` 가 `approved` 일 때만 로그인 `GET /api/sso/authorize` 의 `scope` 에 `donation` 을 더하고, 로그인 PKCE와 **다른** verifier로 만든 `donation_code_challenge`(S256)를 함께 보냅니다. 둘 중 하나만 보내거나 로그인과 같은 challenge를 쓰면 `invalid_request` 입니다. `donation` 은 정보 범위가 아니므로 id_token·userinfo·configuration 의 `scopes` 는 바뀌지 않습니다.
+- 도름스: 회원이 이 사이트에 도름네이션을 허락하지 않았다면 로그인 동의 화면에서 함께 묻습니다. 회원은 '도름네이션 없이 로그인만'을 고를 수 있습니다. 이미 허락했다면 화면 없이 지나갑니다.
+- 되돌아옴: 로그인 콜백에 평소의 `code`, `state` 와 함께 `donation_code`(2분 일회용) 또는 `donation_error` 가 붙습니다. `donation_error` 는 `approval_required`·`consent_required`·`access_denied`·`unsupported`(컴퓨터 앱)·`rate_limited`·`temporarily_unavailable` 등이며 **로그인은 그대로 성공**합니다. 회원이 로그인만 고르면 둘 다 붙지 않습니다.
+- 교환: 로그인 코드를 id_token 으로 바꾼 직후, 기존 `POST /api/connect/donations/token` 에 그 id_token 을 `Authorization: Bearer` 로 붙여 `{client_id, redirect_uri: <사이트 origin>/api/auth/dorms/donation/callback, code: donation_code, code_verifier: <도름네이션 verifier>}` 를 보냅니다. 응답과 수명 규칙(로그인 만료와 7일 중 이른 때)은 위와 같습니다. 이 교환이 실패해도 로그인은 유지하고, 전송 때 `consent_required` 를 받으면 위의 최초 허용 흐름으로 안내합니다.
+- 페이지를 떠나면 안 되는 화면에서는 `consent_required` 를 받았을 때 `window.location` 으로 넘기지 말고 안내만 보여 주세요. 다음 로그인 때 함께 허락받을 수 있습니다.
+
 외부 앱이 침해되면 동의한 회원의 하루 한도 안에서 도름 전송이 오용될 수 있습니다. 운영자 중지·회원 연결 철회가 다음 요청부터 적용됩니다. 도름을 받는 것만으로 다른 회원의 잔액이나 회원 정보를 조회할 권한은 생기지 않습니다.

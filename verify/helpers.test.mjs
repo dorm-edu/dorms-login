@@ -135,6 +135,7 @@ test("token exchange validates nonce, grant generation and callback binding", as
   let tokenValue = await token({ nonce });
   const result = await sdk.finishDormsLogin({ code: "authorization-code", verifier: "V".repeat(43), nonce, requestUrl: "http://localhost:3000/callback" });
   assert.equal(result.idToken, tokenValue);
+  assert.match(result.subject, /^[0-9a-f-]{36}$/, "v0.5 returns the verified member id for the donation add-on");
   assert.equal(JSON.parse(state.calls[0].init.body).redirect_uri, "http://localhost:3000/api/auth/dorms/callback");
   tokenValue = await token({ nonce: "wrong" });
   await assert.rejects(sdk.finishDormsLogin({ code: "code", verifier: "V".repeat(43), nonce, requestUrl: "http://localhost:3000/callback" }), isReason("authentication_required"));
@@ -149,4 +150,14 @@ test("doreumi scope is requested only when DoRms says the site enabled the outfi
   }
   state.fetch = () => response({ active: true, scopes: ["openid", "profile", "doreumi"] });
   await assert.rejects(() => sdk.beginDormsLogin("http://localhost:3000/start"), isReason("temporarily_unavailable"));
+});
+
+test("login start reports the site's donation approval for the optional donation add-on", async () => {
+  const { sdk, state } = load();
+  for (const [donations, expected] of [[{ status: "approved" }, "approved"], [{ status: "pending" }, "pending"], [undefined, null], ["approved", null]]) {
+    state.fetch = () => response({ active: true, scopes: ["openid", "profile"], ...(donations === undefined ? {} : { donations }) });
+    const started = await sdk.beginDormsLogin("http://localhost:3000/start");
+    assert.equal(started.donations, expected);
+    assert.equal(new URL(started.authorizeUrl).searchParams.get("scope"), "openid profile", "login itself never asks for donations");
+  }
 });
