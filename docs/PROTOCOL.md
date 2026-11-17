@@ -110,13 +110,13 @@ No refresh-token, single-logout, token introspection or complete OIDC conformanc
 
 내가 만든 앱에 사람들이 도름스로 로그인하고, 서로에게 도름을 줄 수 있어요(도름네이션).
 
-사이트 운영자가 `/connect`의 해당 앱 카드에서 도름네이션 설치 프롬프트 복사 버튼을 누르면 사용 신청도 자동으로 접수됩니다. 신청자 본인 이름으로 홍창욱 계정에 쪽지가 가며, 관리자가 승인해야 사용할 수 있습니다. 로그인 설치 프롬프트 복사와 CLI 설치 명령은 사용 신청을 접수하지 않습니다. 이용자는 최초 한 번 도름 사용에 동의합니다. 모든 연동 사이트를 합쳐 한 사람당 한국 시간 하루 최대 3도름을 보냅니다. 수신자는 해당 앱에서 실제로 도름스로 로그인한 회원이어야 합니다. 보낸 사람의 누적 도름은 줄고 받은 사람은 늘어 랭킹에도 반영됩니다. 받은 양은 주간·월간 랭킹, 보낸 양은 응원단장에 집계됩니다. 받은 도름은 상점에서도 쓸 수 있습니다. 기존 성공 거래도 한 번만 소급 반영합니다. API 요청·응답은 같으므로 이미 설치된 사이트도 재설치 없이 같은 방식으로 작동합니다.
+사이트 운영자가 `/connect`의 해당 앱 카드에서 도름네이션 설치 프롬프트 복사 버튼을 누르면 사용 신청도 자동으로 접수됩니다. 신청자 본인 이름으로 홍창욱 계정에 쪽지가 가며, 관리자가 승인해야 사용할 수 있습니다. 로그인 설치 프롬프트 복사와 CLI 설치 명령은 사용 신청을 접수하지 않습니다. 이용자는 최초 한 번 도름 사용에 동의합니다. 한 번에 1~3도름, 모든 연동 사이트를 합쳐 한 사람당 한국 시간 하루 최대 15도름을 보냅니다. 수신자는 해당 앱에서 실제로 도름스로 로그인한 회원이어야 합니다. 보낸 사람의 누적 도름은 줄고 받은 사람은 늘어 랭킹에도 반영됩니다. 받은 양은 주간·월간 랭킹, 보낸 양은 응원단장에 집계됩니다. 받은 도름은 상점에서도 쓸 수 있습니다. 기존 성공 거래도 한 번만 소급 반영합니다. API 요청·응답은 같으므로 이미 설치된 사이트도 재설치 없이 같은 방식으로 작동합니다.
 
 기존 `openid profile email` scope 및 로그인 응답은 그대로입니다. 별도의 도름네이션 권한으로 도름 전송만 허용하며 DB 접근권한·서비스 키·클라이언트 비밀키는 필요하지 않습니다.
 
 - `GET /api/connect/donations/authorize`: `client_id`, `redirect_uri`, `state`, `code_challenge`, `code_challenge_method=S256`, `session_expires_at`(현재 로그인 만료 epoch 초). Dorms 로그인 및 최초 동의 후 `code`, `state`를 되돌립니다. 등록된 사이트 origin의 `/api/auth/dorms/donation/callback`만 사용합니다.
 - `POST /api/connect/donations/token`: 현재 로그인 ID 토큰을 `Authorization: Bearer <id_token>` 헤더에 넣고 JSON `{client_id, redirect_uri, code, code_verifier}`. 응답 `{donation_token, expires_in, subject}`. 공급자는 로그인 토큰의 서명·발급자·대상 사이트·회원·동의 세대·만료를 검증하고 발급되는 도름네이션 토큰을 그 로그인 만료 이내, 최대 7일로 제한합니다. 브라우저가 주장한 `session_expires_at`만으로 수명을 늘릴 수 없습니다. 로그인 ID 토큰은 이 교환 요청에서만 쓰고 status/send/revoke에는 전용 도름네이션 토큰을 사용합니다.
-- `GET /api/connect/donations/status`: 전용 토큰의 Bearer 인증. 응답 `{subject, availableBalance, dailyRemaining, resetsAt}`. `resetsAt`은 ISO 8601 시각입니다.
+- `GET /api/connect/donations/status`: 전용 토큰의 Bearer 인증. 응답 `{subject, availableBalance, dailyRemaining, dailyRemainingTotal, resetsAt}`. `dailyRemaining`은 이번에 보낼 수 있는 최대(0~3), `dailyRemainingTotal`은 오늘 모든 연동 앱을 합쳐 남은 양(0~15, v0.6.0~)입니다. `resetsAt`은 ISO 8601 시각입니다.
 - `POST /api/connect/donations/send`: 동일 인증과 JSON `{recipientId, amount, requestId}`. 수량은 1~3 정수, 두 ID는 UUID입니다. 응답 `{transferId, amount, availableBalance, dailyRemaining, resetsAt}`는 DB 반영 후에만 반환됩니다.
 - `POST /api/connect/donations/revoke`: 동일 인증. 토큰 폐기 후 JSON 응답을 반환합니다.
 

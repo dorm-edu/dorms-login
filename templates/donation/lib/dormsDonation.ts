@@ -16,7 +16,8 @@ const now = () => Math.floor(Date.now() / 1000);
 export class DormsDonationError extends Error {
   constructor(readonly reason: string, readonly status = 503) { super(reason); this.name = "DormsDonationError"; }
 }
-export type DonationStatus = { subject: string; availableBalance: number; dailyRemaining: number; resetsAt: string };
+/** dailyRemaining: 이번에 보낼 수 있는 최대(0~3). dailyRemainingTotal: 오늘 모든 연동 앱을 합쳐 남은 양(하루 15도름, v0.6.0~). */
+export type DonationStatus = { subject: string; availableBalance: number; dailyRemaining: number; dailyRemainingTotal?: number; resetsAt: string };
 export type DonationResult = Omit<DonationStatus, "subject"> & { transferId: string; amount: number };
 type Flow = { state: string; verifier: string; next: string; createdAt: number; subject: string; session: string };
 type Credential = { token: string; session: string; expiresAt: number };
@@ -109,7 +110,7 @@ async function credential() {
   return { token: saved.token, subject: current.user.id };
 }
 function balances(body: Record<string, unknown>) {
-  if (typeof body.availableBalance !== "number" || !Number.isFinite(body.availableBalance) || body.availableBalance < 0 || !Number.isInteger(body.dailyRemaining) || Number(body.dailyRemaining) < 0 || Number(body.dailyRemaining) > 3 || typeof body.resetsAt !== "string" || !Number.isFinite(Date.parse(body.resetsAt))) throw new DormsDonationError("temporarily_unavailable");
+  if (typeof body.availableBalance !== "number" || !Number.isFinite(body.availableBalance) || body.availableBalance < 0 || !Number.isInteger(body.dailyRemaining) || Number(body.dailyRemaining) < 0 || Number(body.dailyRemaining) > 3 || (body.dailyRemainingTotal !== undefined && (!Number.isInteger(body.dailyRemainingTotal) || Number(body.dailyRemainingTotal) < Number(body.dailyRemaining) || Number(body.dailyRemainingTotal) > 1000)) || typeof body.resetsAt !== "string" || !Number.isFinite(Date.parse(body.resetsAt))) throw new DormsDonationError("temporarily_unavailable");
 }
 export async function getDonationStatus(): Promise<DonationStatus> {
   const current = await credential();

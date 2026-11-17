@@ -159,3 +159,15 @@ test("v0.5 login callback trades the donation code with the new login token and 
   state.fetch = () => response({ donation_token: "T".repeat(43), expires_in: 3600, subject: RECIPIENT });
   await assert.rejects(sdk.finishDonationLogin("https://example.test/api/auth/dorms/callback", input), reason("temporarily_unavailable"), "a pass for another member is refused");
 });
+
+test("status keeps the daily total from DoRms (15 a day) and still rejects nonsense", async () => {
+  const { sdk, state } = await authorized();
+  state.fetch = () => response({ ...status, dailyRemaining: 3, dailyRemainingTotal: 15 });
+  const ok = await sdk.getDonationStatus();
+  assert.equal(ok.dailyRemaining, 3);
+  assert.equal(ok.dailyRemainingTotal, 15);
+  state.fetch = () => response({ ...status, dailyRemaining: 3, dailyRemainingTotal: 1 });
+  await assert.rejects(sdk.getDonationStatus(), reason("temporarily_unavailable"));
+  state.fetch = () => response(status);
+  assert.equal((await sdk.getDonationStatus()).dailyRemainingTotal, undefined, "older DoRms responses still work");
+});
