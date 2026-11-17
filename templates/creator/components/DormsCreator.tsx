@@ -11,7 +11,7 @@ import type { CSSProperties, DetailedHTMLProps, HTMLAttributes } from "react";
 
 export const DORMS_CREATOR_SCRIPT = "https://dorms.school/embed/creator.js";
 
-type CreatorElementProps = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & { ids?: string; headless?: boolean | "" };
+type CreatorElementProps = DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement> & { ids?: string; /** 켜려면 속성을 달고, 끄려면 아예 빼요(false 를 주면 React 18 은 "false" 글자로 남겨 켜진 것으로 본다). */ headless?: true };
 
 declare module "react" {
   // eslint-disable-next-line @typescript-eslint/no-namespace

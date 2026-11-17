@@ -125,6 +125,8 @@ dorms-creator::part(card) { box-shadow: 0 12px 40px rgb(0 0 0 / .15); }
 dorms-creator::part(chip) { background: #fff3e6; }
 ```
 
+어두운 사이트라면 `--dorms-creator-surface`·`--dorms-creator-text`를 꼭 주거나 페이지에 `color-scheme: dark`를 선언하세요. 아무것도 주지 않으면 정보 창은 브라우저 기본(밝은) 바탕으로 열려요.
+
 꾸밀 수 있는 칸: `chip` `chip-photo` `name` `card` `head` `photo` `nickname` `handle` `badges` `badge` `meta` `teacher` `bio` `links` `link` `stats` `actions` `site` `more` `close` `missing`.
 화면을 처음부터 직접 그리고 싶으면 `<dorms-creator ids="…" headless>`로 두고 `dorms-creator:data` 이벤트의 `event.detail.creators`를 쓰세요. 형식은 [연동 계약의 만든 사람 프로필 절](./docs/PROTOCOL.md#만든-사람-프로필-선택-기능-v060)에 있어요.
 
