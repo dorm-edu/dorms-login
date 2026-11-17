@@ -15,9 +15,9 @@
 AI가 실행하는 명령입니다. npm에 게시한 패키지가 아니므로 GitHub 주소를 그대로 사용합니다.
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz detect
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz init --client-id '<사이트 id>' --site 'https://example.com'
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz doctor
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.6.0.tar.gz detect
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.6.0.tar.gz init --client-id '<사이트 id>' --site 'https://example.com'
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.6.0.tar.gz doctor
 ```
 
 `init`은 로그인 파일 6개와 설치 기록 `.dorms-login.json`을 만들고 `jose`를 설치합니다. 환경 변수는 공개값인 `DORMS_CLIENT_ID`, `DORMS_SITE_URL` 두 개입니다. 배포 환경에도 같은 값을 넣어야 합니다. 기존 파일은 덮어쓰지 않습니다.
@@ -81,7 +81,7 @@ v0.2.0의 `getDormsUser()`, `requireDormsUser()`, `refreshDormsUser()`는 호출
 공개 도구의 새 판을 내도 각 사이트에 복사해 둔 코드는 자동으로 바뀌지 않습니다. AI에게 다음 명령으로 확인하고 업데이트를 마쳐 달라고 요청하세요.
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz upgrade
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.6.0.tar.gz upgrade
 ```
 
 설치 기록과 내용이 같은 파일만 자동으로 바꿉니다. 직접 고친 파일은 보존하고 `.dorms-login/review/`에 새 참고본과 차이를 남깁니다. v0.1.0에는 설치 기록이 없으므로 AI가 참고본의 변경을 기존 코드와 합쳐야 합니다. 검토할 파일이 남으면 명령은 종료 코드 `1`을 반환합니다.
@@ -93,6 +93,44 @@ AI가 차이를 합친 뒤 타입검사·빌드·실제 로그인·연결 끊기
 회원이 허용한 사이트에 닉네임, 사진, 교사 인증 여부, 받은 도름 수가 전달됩니다. 이메일과 도름이 착장은 사이트가 요청하고 회원이 허용했을 때만 전달되며 애플 이메일 가리기 계정 등에서는 없을 수 있습니다. 비밀번호와 도름스 자체 로그인 쿠키는 전달하지 않습니다. 도름스에서 연결을 끊으면 새 정보 전달을 중단하고, v0.2.0의 확인 함수를 적용한 사이트는 다음 보호 요청부터 차단합니다. 이전 설치본은 업데이트가 필요합니다.
 
 [HTTP 계약](./docs/PROTOCOL.md) · [보안 안내](./SECURITY.md) · [MIT 라이선스](./LICENSE)
+
+## 만든 사람 프로필 달기 (선택, v0.6.0)
+
+웹앱 구석에 '만든 사람'을 글자로 적어 두면 동명이인과 헷갈리고, 소속이 바뀔 때마다 고쳐야 해요. 대신 도름스 프로필을 달면 닉네임과 프로필 사진을 바꿀 때 그대로 따라 바뀌어요. 누르면 그 선생님의 도름스 프로필 정보(교사 인증, 지역과 담당, 소개, 링크, 랭킹, 받은 도름, 숙제 출석, 뱃지)가 정보 창으로 열리고, **도름스에서 자세히 보기**는 도름스 프로필을 새 탭으로 엽니다. 차단이나 쪽지처럼 도름스 안에서만 하는 일은 담기지 않아요.
+
+로그인 없이 공개 정보만 쓰는 부품이라, 도름스 로그인을 달지 않은 사이트에도 두 줄이면 됩니다(HTML · Vite · Next.js 모두).
+
+```html
+<script src="https://dorms.school/embed/creator.js" defer></script>
+<dorms-creator ids="회원번호,회원번호"></dorms-creator>
+```
+
+- 회원 번호는 도름스 프로필 주소 `https://dorms.school/u/<회원번호>`의 끝부분이에요. 내 번호가 들어간 코드와 AI 프롬프트는 [내 사이트 관리](https://dorms.school/connect#creator)의 **만든 사람으로 내 프로필 달기**에서 복사할 수 있어요. 함께 만든 선생님은 쉼표로 이어 적어요(10명까지).
+- Next.js App Router에 도름스 로그인을 이미 달았다면 `upgrade --creator`로 `components/DormsCreator.tsx`를 받아 `<DormsCreator ids={["회원번호"]} />`처럼 써도 돼요. 새로 설치하면 `init --creator`.
+
+### 배치는 그대로, 디자인은 내 사이트대로
+
+정보의 배치(사진·닉네임과 뱃지 → 인증·지역·함께한 때 → 소개 → 링크 → 랭킹·받은 도름·숙제 출석 → 사이트 열기·도름스에서 자세히 보기)는 도름스 프로필 창과 같고, 색·글꼴·모서리·그림자는 부품이 정하지 않아요. 글꼴과 글자색은 감싸는 곳에서 물려받고, 나머지는 내 사이트가 입힙니다.
+
+```css
+dorms-creator {
+  --dorms-creator-surface: #fffaf2;  /* 정보 창 바탕 */
+  --dorms-creator-text: #2b2620;     /* 정보 창 글자 */
+  --dorms-creator-border: #e3d8c8;   /* 선 */
+  --dorms-creator-muted: #7a6f62;    /* 흐린 글자 */
+  --dorms-creator-accent: #e85d3f;   /* 교사 인증 · 링크 · 자세히 보기 */
+  --dorms-creator-radius: 14px;      /* 정보 창 · 단추 모서리 */
+}
+dorms-creator::part(card) { box-shadow: 0 12px 40px rgb(0 0 0 / .15); }
+dorms-creator::part(chip) { background: #fff3e6; }
+```
+
+꾸밀 수 있는 칸: `chip` `chip-photo` `name` `card` `head` `photo` `nickname` `handle` `badges` `badge` `meta` `teacher` `bio` `links` `link` `stats` `actions` `site` `more` `close` `missing`.
+화면을 처음부터 직접 그리고 싶으면 `<dorms-creator ids="…" headless>`로 두고 `dorms-creator:data` 이벤트의 `event.detail.creators`를 쓰세요. 형식은 [연동 계약의 만든 사람 프로필 절](./docs/PROTOCOL.md#만든-사람-프로필-선택-기능-v060)에 있어요.
+
+사이트에 콘텐츠 보안 정책(CSP)이 있으면 `script-src`·`connect-src`에 `https://dorms.school`, `img-src`에 `https://dorms.school`과 `https://*.supabase.co`를 더해 주세요. 탈퇴했거나 찾을 수 없는 번호는 '찾을 수 없는 회원'으로만 보여요.
+
+[복사해서 AI에 부탁하기](USE-WITH-AI.md#만든-사람-프로필-달기)
 
 ## 도름이 착장 불러오기 (선택, v0.4.0)
 

@@ -7,9 +7,9 @@ Add a **Sign in with DoRms** button to a teacher-built site. Teachers register a
 ## Install
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz detect
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz init --client-id '<site id>' --site 'https://example.com'
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz doctor
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.6.0.tar.gz detect
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.6.0.tar.gz init --client-id '<site id>' --site 'https://example.com'
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.6.0.tar.gz doctor
 ```
 
 Automatic installation supports Node.js 22+, TypeScript, Next.js 15+ App Router, and sites served from the root of an HTTPS origin. Subpaths/basePath, Pages Router, JavaScript-only projects and browser-only apps need a manual integration using [the HTTP contract](./docs/PROTOCOL.md). Generated `app/` and `src/app/` projects are production-build tested against Next.js 15.5.26. Other framework versions need their own build and integration checks.
@@ -29,7 +29,7 @@ Email scope is obtained from the current provider configuration at login. Defaul
 ## Upgrade existing sites
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.5.0.tar.gz upgrade
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.6.0.tar.gz upgrade
 ```
 
 Only unmodified files recorded in the manifest are replaced automatically. Customized or legacy v0.1.0 files remain untouched; new reference files and diffs are written to `.dorms-login/review/`, and the command exits with code `1`. Merge the changes, run type/build checks and actual login/revocation tests, then run `upgrade --accept-reviewed` to record the review. This does not overwrite custom files, and future upgrades continue to preserve them. Publishing a new tool version does not update already installed sites by itself.
@@ -37,6 +37,17 @@ Only unmodified files recorded in the manifest are replaced automatically. Custo
 DoRms never sends passwords or its own session cookies to your site. Members consent to profile data and optional email. This package implements authorization code + PKCE and a documented core OIDC login flow, not every OIDC feature or universal compatibility with every client library.
 
 [SECURITY.md](./SECURITY.md) · [HTTP contract](./docs/PROTOCOL.md) · [MIT license](./LICENSE)
+
+## Creator profile badge (optional, v0.6.0)
+
+Show who made your web app as a live DoRms profile instead of a hard-coded name. The chip (photo + nickname) follows profile changes; clicking opens the same public information as the DoRms profile card, and "도름스에서 자세히 보기" opens the DoRms profile in a new tab. No login is needed, so it works on any site:
+
+```html
+<script src="https://dorms.school/embed/creator.js" defer></script>
+<dorms-creator ids="member-id,member-id"></dorms-creator>
+```
+
+The layout matches the DoRms profile card; the design is yours. Fonts and text color are inherited, colors and radius come from `--dorms-creator-*` variables, and every block is exposed as a `::part()`. Next.js projects using this tool can run `upgrade --creator` for a `DormsCreator` component. See the Korean README and [PROTOCOL.md](./docs/PROTOCOL.md) for parts, variables, headless mode and CSP.
 
 ## Optional Doreumi outfit (v0.4.0)
 

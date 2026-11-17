@@ -28,7 +28,7 @@ test("install matrix resolves real files regardless of aliases or app placement"
     const imp = /from "([^"]*dormsLogin)"/.exec(readFileSync(route, "utf8"))[1];
     assert.ok(existsSync(path.resolve(path.dirname(route), imp) + ".ts"));
     assert.equal(readFileSync(path.join(dir, src ? "src/lib/dormsLogin.ts" : "lib/dormsLogin.ts"), "utf8").includes("__DORMS_"), false);
-    assert.equal(JSON.parse(readFileSync(path.join(dir, ".dorms-login.json"), "utf8")).version, "0.5.0");
+    assert.equal(JSON.parse(readFileSync(path.join(dir, ".dorms-login.json"), "utf8")).version, "0.6.0");
   }
 });
 
@@ -75,7 +75,7 @@ test("safe upgrade replaces owned unmodified files and preserves customized file
   assert.equal(readFileSync(lib, "utf8"), original); assert.equal(readFileSync(button, "utf8"), custom);
   assert.ok(existsSync(path.join(dir, ".dorms-login/review/components/DormsLoginButton.tsx.diff")));
   assert.equal(run(dir, "upgrade", "--accept-reviewed", "--no-install").status, 0);
-  assert.equal(JSON.parse(readFileSync(manifest, "utf8")).version, "0.5.0");
+  assert.equal(JSON.parse(readFileSync(manifest, "utf8")).version, "0.6.0");
   assert.equal(run(dir, "upgrade", "--no-install").status, 1, "future upgrades must keep custom files protected");
   assert.equal(readFileSync(button, "utf8"), custom);
 });
@@ -140,6 +140,25 @@ test("--doreumi installs the outfit helper and routes, and upgrade keeps it", (t
   assert.equal(JSON.parse(readFileSync(path.join(dir, ".dorms-login.json"), "utf8")).doreumi, true);
   assert.equal(run(dir, "upgrade", "--no-install").status, 0);
   assert.ok(existsSync(path.join(dir, "src/lib/dormsDoreumi.ts")));
+});
+
+test("--creator installs the creator profile component and upgrade keeps it", (t) => {
+  const dir = scaffold(t, { src: true });
+  assert.equal(init(dir).status, 0);
+  const file = path.join(dir, "src/components/DormsCreator.tsx");
+  assert.equal(existsSync(file), false, "creator profile is opt-in");
+  const result = run(dir, "upgrade", "--creator", "--no-install");
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const text = readFileSync(file, "utf8");
+  assert.match(text, /https:\/\/dorms\.school\/embed\/creator\.js/);
+  assert.match(text, /"dorms-creator"/);
+  assert.equal(text.includes("__DORMS_"), false);
+  assert.equal(JSON.parse(readFileSync(path.join(dir, ".dorms-login.json"), "utf8")).creator, true);
+  assert.equal(run(dir, "upgrade", "--no-install").status, 0);
+  assert.ok(existsSync(file));
+  const fresh = scaffold(t);
+  assert.equal(init(fresh, "--creator").status, 0);
+  assert.ok(existsSync(path.join(fresh, "components/DormsCreator.tsx")));
 });
 
 test("the donation mode is chosen at install: none, separate (--donations) or at login (--donations-at-login)", (t) => {

@@ -1,5 +1,5 @@
 /**
- * DoRms login v0.5.0. Server components, route handlers and server actions only.
+ * DoRms login v0.6.0. Server components, route handlers and server actions only.
  * Every protected call verifies the token and asks DoRms for current permission.
  * Do not cache the result across requests or continue with an old user on failure.
  */

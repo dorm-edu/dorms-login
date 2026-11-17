@@ -1,4 +1,4 @@
-# DoRms login HTTP contract v0.5.0
+# DoRms login HTTP contract v0.6.0
 
 This contract describes authorization code + PKCE (S256), discovery, an ID token, and userinfo. It implements the core OIDC login flow used here; it does not promise every OIDC feature or automatic compatibility with every OIDC library. There is no client secret. Register a site as a verified teacher at https://dorms.school/connect.
 
@@ -139,3 +139,21 @@ No refresh-token, single-logout, token introspection or complete OIDC conformanc
 - 페이지를 떠나면 안 되는 화면에서는 `consent_required` 를 받았을 때 `window.location` 으로 넘기지 말고 안내만 보여 주세요. 다음 로그인 때 함께 허락받을 수 있습니다.
 
 외부 앱이 침해되면 동의한 회원의 하루 한도 안에서 도름 전송이 오용될 수 있습니다. 운영자 중지·회원 연결 철회가 다음 요청부터 적용됩니다. 도름을 받는 것만으로 다른 회원의 잔액이나 회원 정보를 조회할 권한은 생기지 않습니다.
+
+## 만든 사람 프로필 (선택 기능, v0.6.0)
+
+로그인 · 토큰 · 쿠키 없이 부르는 공개 읽기 경로다. 로그아웃한 사람이 도름스 프로필에서 보는 정보만 돌려준다.
+
+```
+GET https://dorms.school/api/public/creators?ids=<uuid>,<uuid>   (소문자, 1~10명, 다른 질의 금지)
+Access-Control-Allow-Origin: *     Cache-Control: public, s-maxage=300
+```
+
+- 대문자 · 공백 · 중복이 섞이면 정리된 주소로 308, 형식이 틀리면 400, 너무 자주 부르면 429, 일시 장애는 503.
+- 응답: `{ version: 1, creators: [...] }`, 요청한 순서 그대로.
+  - 찾지 못한 회원(없음 · 탈퇴 · 제재 · 학생 계정): `{ id, found: false }`. 이유는 알려 주지 않는다.
+  - 찾은 회원: `{ id, found: true, nickname, handle, avatarUrl, teacherVerified, workRegion, workRole, joinedAt, bio, links: [{label,url}], rank, totalDorms, homework: {termLabel,stamped,required,awards} | null, badges: [{id,name,label}], site: {url,label} | null, profileUrl }`.
+  - `avatarUrl` 이 null 이면 `https://dorms.school/doreumi/id-photo-base.webp`(기본 도름이)를 쓴다. `rank` 가 null 이면 순위 밖. `links`·`site` 는 http(s) 만 온다.
+- 붙이기 부품 `https://dorms.school/embed/creator.js` 는 이 경로를 불러 `<dorms-creator>` 를 그린다. `headless` 속성을 달면 그리지 않고 `dorms-creator:data` 이벤트(`detail.creators`)만 보낸다. 실패하면 `dorms-creator:error`.
+- 회원 데이터(닉네임 · 소개 · 링크 이름)는 글자로만 그리고, 링크는 새 탭(`noopener`)으로 연다. 직접 그릴 때도 HTML 로 넣지 않는다.
+

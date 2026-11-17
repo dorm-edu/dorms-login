@@ -82,10 +82,10 @@ function safeWritePath(file) {
 function walk(dir) {
   return readdirSync(dir).flatMap((name) => { const p = path.join(dir, name); return statSync(p).isDirectory() ? walk(p) : [p]; });
 }
-function targets(d, donations = false, doreumi = false, donationsAtLogin = false) {
+function targets(d, donations = false, doreumi = false, donationsAtLogin = false, creator = false) {
   const libFile = path.join(root, d.base, "lib/dormsLogin");
   const sources = new Map(walk(TEMPLATE_ROOT).map((src) => [path.relative(TEMPLATE_ROOT, src), src]));
-  for (const [enabled, folder] of [[donations, "donation"], [doreumi, "doreumi"]]) {
+  for (const [enabled, folder] of [[donations, "donation"], [doreumi, "doreumi"], [creator, "creator"]]) {
     if (!enabled) continue;
     const extra = path.join(HERE, "..", "templates", folder);
     for (const src of walk(extra)) sources.set(path.relative(extra, src), src);
@@ -125,7 +125,9 @@ function install(upgrade) {
   const donationsAtLogin = flag("donations-at-login") ? true : flag("donations") ? false : previous?.donationsAtLogin === true;
   const donations = flag("donations") || flag("donations-at-login") || previous?.donations === true;
   const doreumi = flag("doreumi") || previous?.doreumi === true;
-  const files = targets(d, donations, doreumi, donationsAtLogin);
+  // 만든 사람 프로필(v0.6.0): 로그인과 상관없는 공개 부품. 한 번 고르면 다음 upgrade 도 유지한다.
+  const creator = flag("creator") || previous?.creator === true;
+  const files = targets(d, donations, doreumi, donationsAtLogin, creator);
   if (existsSync(manifestPath) && (!previous || previous.schemaVersion !== 1 || !previous.files || typeof previous.files !== "object")) fail(".dorms-login.json을 읽지 못했어요. 설치 기록을 확인한 뒤 다시 실행해 주세요.");
   for (const p of [...files.map((f) => f.dest), manifestPath, path.join(root, ".env.local"), path.join(root, ".env.example"), path.join(root, ".gitignore"), path.join(root, ".dorms-login/review")]) safeWritePath(p);
   const hashes = { ...previous?.files };
@@ -181,7 +183,7 @@ function install(upgrade) {
   let giText = existsSync(gi) ? readFileSync(gi, "utf8") : "";
   for (const line of [".dorms-login/", ".env.local"]) if (!giText.split(/\r?\n/).includes(line)) giText += `${giText && !giText.endsWith("\n") ? "\n" : ""}${line}\n`;
   writeFileSync(gi, giText);
-  writeFileSync(manifestPath, JSON.stringify({ schemaVersion: 1, donations, donationsAtLogin: donations && donationsAtLogin, doreumi, version: pending.length ? previous?.version ?? null : PKG.version, targetVersion: PKG.version, files: hashes, pending }, null, 2) + "\n");
+  writeFileSync(manifestPath, JSON.stringify({ schemaVersion: 1, donations, donationsAtLogin: donations && donationsAtLogin, doreumi, creator, version: pending.length ? previous?.version ?? null : PKG.version, targetVersion: PKG.version, files: hashes, pending }, null, 2) + "\n");
   if (!d.hasJose && !flag("no-install")) {
     const bins = { npm: ["npm", ["install", "jose@^6.2.3"]], pnpm: ["pnpm", ["add", "jose@^6.2.3"]], yarn: ["yarn", ["add", "jose@^6.2.3"]], bun: ["bun", ["add", "jose@^6.2.3"]] };
     const [bin, argv] = bins[d.pm];
@@ -200,7 +202,7 @@ async function doctor() {
   const d = detect(); printDetect(d);
   const env = localEnv(), id = env.DORMS_CLIENT_ID ?? "", site = siteOrigin(env.DORMS_SITE_URL ?? "");
   const checks = [[d.supported, "자동 설치 지원 범위"], [UUID.test(id), "사이트 id"], [!!site, "도메인 주소"], [d.hasJose, "jose 의존성"]];
-  if (d.appDir) for (const f of targets(d, json(manifestPath)?.donations === true, json(manifestPath)?.doreumi === true, json(manifestPath)?.donationsAtLogin === true)) checks.push([existsSync(f.dest), f.rel]);
+  if (d.appDir) for (const f of targets(d, json(manifestPath)?.donations === true, json(manifestPath)?.doreumi === true, json(manifestPath)?.donationsAtLogin === true, json(manifestPath)?.creator === true)) checks.push([existsSync(f.dest), f.rel]);
   const record = json(manifestPath);
   if (record?.donations === true) {
     const libPath = path.join(root, d.base, "lib/dormsDonation.ts");
@@ -226,7 +228,7 @@ async function doctor() {
   say("기본 설정을 확인했어요. 실제 로그인·로그아웃·연결 끊기와 프로젝트 빌드는 별도로 확인해야 해요.");
 }
 function help() {
-  say(`dorms-login ${PKG.version}\n\n  detect\n  init --client-id <id> --site <https://domain> [--no-install] [--donations | --donations-at-login] [--doreumi]\n  upgrade [--client-id <id>] [--site <https://domain>] [--no-install] [--donations | --donations-at-login] [--doreumi]\n  upgrade --donations           기존 로그인에 도름네이션 추가(처음 보낼 때 따로 허락)\n  upgrade --donations-at-login  기존 로그인에 도름네이션 추가(로그인할 때 함께 허락, 보낼 때 화면이 바뀌지 않음)\n  upgrade --doreumi             기존 로그인에 도름이 착장 불러오기 추가\n  upgrade --accept-reviewed     참고본의 변경을 직접 합치고 검증한 뒤 검토 완료 기록\n  doctor\n\n기존 파일을 덮어쓰지 않아요. upgrade는 설치 기록과 일치하는 파일만 바꾸고, 수정된 파일은 .dorms-login/review/에 참고본과 차이를 남겨요.\n사이트 등록: ${CONNECT_URL}\n다른 스택: ${PROTOCOL_URL}`);
+  say(`dorms-login ${PKG.version}\n\n  detect\n  init --client-id <id> --site <https://domain> [--no-install] [--donations | --donations-at-login] [--doreumi] [--creator]\n  upgrade [--client-id <id>] [--site <https://domain>] [--no-install] [--donations | --donations-at-login] [--doreumi] [--creator]\n  upgrade --donations           기존 로그인에 도름네이션 추가(처음 보낼 때 따로 허락)\n  upgrade --donations-at-login  기존 로그인에 도름네이션 추가(로그인할 때 함께 허락, 보낼 때 화면이 바뀌지 않음)\n  upgrade --doreumi             기존 로그인에 도름이 착장 불러오기 추가\n  upgrade --creator             만든 사람 도름스 프로필 부품(DormsCreator) 추가\n  upgrade --accept-reviewed     참고본의 변경을 직접 합치고 검증한 뒤 검토 완료 기록\n  doctor\n\n기존 파일을 덮어쓰지 않아요. upgrade는 설치 기록과 일치하는 파일만 바꾸고, 수정된 파일은 .dorms-login/review/에 참고본과 차이를 남겨요.\n사이트 등록: ${CONNECT_URL}\n다른 스택: ${PROTOCOL_URL}`);
 }
 try {
   if (command === "detect") printDetect(detect());
