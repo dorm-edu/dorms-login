@@ -15,9 +15,9 @@
 AI가 실행하는 명령입니다. npm에 게시한 패키지가 아니므로 GitHub 주소를 그대로 사용합니다.
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.6.0.tar.gz detect
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.6.0.tar.gz init --client-id '<사이트 id>' --site 'https://example.com'
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.6.0.tar.gz doctor
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.7.0.tar.gz detect
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.7.0.tar.gz init --client-id '<사이트 id>' --site 'https://example.com'
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.7.0.tar.gz doctor
 ```
 
 `init`은 로그인 파일 6개와 설치 기록 `.dorms-login.json`을 만들고 `jose`를 설치합니다. 환경 변수는 공개값인 `DORMS_CLIENT_ID`, `DORMS_SITE_URL` 두 개입니다. 배포 환경에도 같은 값을 넣어야 합니다. 기존 파일은 덮어쓰지 않습니다.
@@ -81,7 +81,7 @@ v0.2.0의 `getDormsUser()`, `requireDormsUser()`, `refreshDormsUser()`는 호출
 공개 도구의 새 판을 내도 각 사이트에 복사해 둔 코드는 자동으로 바뀌지 않습니다. AI에게 다음 명령으로 확인하고 업데이트를 마쳐 달라고 요청하세요.
 
 ```sh
-npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.6.0.tar.gz upgrade
+npx -y https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.7.0.tar.gz upgrade
 ```
 
 설치 기록과 내용이 같은 파일만 자동으로 바꿉니다. 직접 고친 파일은 보존하고 `.dorms-login/review/`에 새 참고본과 차이를 남깁니다. v0.1.0에는 설치 기록이 없으므로 AI가 참고본의 변경을 기존 코드와 합쳐야 합니다. 검토할 파일이 남으면 명령은 종료 코드 `1`을 반환합니다.
@@ -170,3 +170,8 @@ const outfit = await getDormsDoreumi();
 **방식은 개발할 때 고릅니다 (v0.5.0)**: 도름스로 로그인만(옵션 없음), 도름네이션을 따로 허락(`--donations`, 처음 보낼 때 도름스에서 한 번 허락), 로그인할 때 도름네이션까지 허락(`--donations-at-login`). 마지막 방식은 그 사이트의 도름스 로그인이 늘 도름네이션 허락까지 함께 받아, 로그인이 유지되는 동안 보낼 때 화면이 바뀌지 않습니다. 라이브 방송·화상 통화·게임처럼 페이지를 떠나면 안 되는 앱에 쓰세요. 버튼 모양과 문구는 어느 방식이든 앱이 정합니다. 회원은 도름스 허락 화면에서 로그인만 고를 수도 있고(그 회원에게는 다음 로그인 때 다시 묻습니다), 승인 전인 앱은 평소 로그인과 같습니다. 이 방식에서는 기본 도름네이션 버튼도 페이지를 넘기지 않고, 허용이나 다시 로그인이 필요하면 새 창 링크를 보여 줍니다(새 창은 `/dorms-donation-allowed` 로 끝나 원래 화면을 다시 열지 않아요). 홈 화면에 추가한 웹앱처럼 새 창에 이 사이트의 로그인이 없을 수 있는 환경이면 그 안내를 따로 두세요. `upgrade --donations`·`upgrade --donations-at-login` 으로 방식을 바꿉니다.
 
 [복사해서 AI에 부탁하기](USE-WITH-AI.md#도름네이션도-붙이기) · [다른 환경의 연동 안내](docs/PROTOCOL.md#도름네이션-선택-기능-v030) · [로그인할 때 함께 허락받기](docs/PROTOCOL.md#로그인과-함께-도름네이션-허락받기-v050)
+
+### 메시지와 선물 쪽지 (v0.7.0)
+
+`DormsDonationButton` 위에 메시지 칸이 함께 나와요(`withMessage={false}` 로 숨길 수 있어요). 도름을 보내면 받는 선생님의 도름스 쪽지함에 **보낸 선생님 닉네임으로 선물 쪽지**가 가고, 적은 메시지가 그 안에 실려요. 메시지를 안 적어도 쪽지는 가요.
+쪽지를 보내지 않으려면 dorms.school/connect 의 내 사이트 카드에서 '도름을 받은 선생님에게 쪽지로도 알리기'를 끄면 돼요(기본은 켬).

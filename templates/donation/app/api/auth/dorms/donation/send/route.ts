@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
         const { done, value } = await reader.read();
         if (done) break;
         size += value.byteLength;
-        if (size > 2048) { await reader.cancel(); throw new DormsDonationError("invalid_request", 400); }
+        if (size > 4096) { await reader.cancel(); throw new DormsDonationError("invalid_request", 400); }
         chunks.push(value);
       }
     } finally { reader.releaseLock(); }
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     let input;
     try { input = JSON.parse(text); } catch { throw new DormsDonationError("invalid_request", 400); }
     if (!input || typeof input !== "object" || Array.isArray(input)) throw new DormsDonationError("invalid_request", 400);
-    return NextResponse.json(await sendDonation({ recipientId: input.recipientId, amount: input.amount, requestId: input.requestId }), { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(await sendDonation({ recipientId: input.recipientId, amount: input.amount, requestId: input.requestId, message: input.message }), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const known = error instanceof DormsDonationError || error instanceof DormsAuthError;
     return NextResponse.json({ reason: known ? error.reason : "temporarily_unavailable" }, { status: known ? error.status : 503, headers: { "Cache-Control": "no-store" } });

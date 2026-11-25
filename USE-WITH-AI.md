@@ -5,7 +5,7 @@
 ```text
 내 사이트에 DoRms로 로그인 버튼을 달아줘. 도름스에서 복사한 사이트 id와 주소를 사용해줘.
 
-1. 고정된 v0.6.0 도구로 detect를 실행해 지원되는 프로젝트인지 확인해줘. 자동 설치는 Node.js 22 이상, TypeScript, Next.js 15 이상 App Router, 도메인 첫 경로만 지원해. 다른 환경이면 공개 연동 계약을 읽고 서버에서 확인하는 방식으로 붙여줘.
+1. 고정된 v0.7.0 도구로 detect를 실행해 지원되는 프로젝트인지 확인해줘. 자동 설치는 Node.js 22 이상, TypeScript, Next.js 15 이상 App Router, 도메인 첫 경로만 지원해. 다른 환경이면 공개 연동 계약을 읽고 서버에서 확인하는 방식으로 붙여줘.
 2. 처음에는 init, 기존 설치는 upgrade를 사용해줘. 값을 명령에 넣을 때 안전하게 인용하고 기존 파일은 덮어쓰지 마. 겹치는 파일은 .dorms-login/review/의 참고본과 비교해 수정 내용을 합쳐줘.
 3. 로그인 화면에 DormsLoginButton을 놓고 보호할 페이지에서는 requireDormsUser를 호출해줘. 자료를 읽거나 저장하는 API와 서버 액션도 처리 전에 getDormsUser를 확인해줘. 확인 실패 때 예전 로그인 정보로 계속 처리하면 안 돼. 자료 소유자 검사도 유지해줘.
 4. 입장 조건과 이메일은 도름스의 현재 설정을 읽어줘. 예전 설치 당시 값을 코드에 고정하지 마. 회원 구분은 도름스 회원 id로 하고 이메일로 다른 계정과 합치지 마.
@@ -14,7 +14,7 @@
 7. 업데이트에서 직접 합친 파일이 있다면 검증 후 upgrade --accept-reviewed로 기록해줘. 무엇을 확인했고 아직 확인하지 못한 것은 무엇인지 알려줘.
 ```
 
-명령은 npm 패키지명이 아니라 `https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.6.0.tar.gz`를 사용합니다. 다른 환경의 [HTTP 계약](./docs/PROTOCOL.md)도 같은 판을 읽어야 합니다.
+명령은 npm 패키지명이 아니라 `https://github.com/shinnanchanguk/dorms-login/archive/refs/tags/v0.7.0.tar.gz`를 사용합니다. 다른 환경의 [HTTP 계약](./docs/PROTOCOL.md)도 같은 판을 읽어야 합니다.
 
 ## 도름네이션도 붙이기
 
@@ -40,7 +40,7 @@
 
 ```text
 이 앱에 dorms-login의 도름네이션 기능을 붙여줘. 기존 도름스 로그인과 앱의 디자인, 직접 수정한 코드를 보존해줘.
-1. github.com/shinnanchanguk/dorms-login의 검증된 v0.6.0 릴리스를 사용해 detect로 환경을 확인해줘. 릴리스가 아직 없으면 진행하지 말고 알려줘. 지원 범위 밖이면 docs/PROTOCOL.md의 수동 연동 절차로 구현해줘.
+1. github.com/shinnanchanguk/dorms-login의 검증된 v0.7.0 릴리스를 사용해 detect로 환경을 확인해줘. 릴리스가 아직 없으면 진행하지 말고 알려줘. 지원 범위 밖이면 docs/PROTOCOL.md의 수동 연동 절차로 구현해줘.
 2. 도름네이션 허락을 받는 방식을 나에게 먼저 물어보고 정해줘. 처음 보낼 때 따로 허락받기는 --donations, 로그인할 때 함께 허락받기는 --donations-at-login 이야. 라이브 방송·화상 통화·게임처럼 페이지를 떠나면 안 되는 화면이 있으면 --donations-at-login 을 권해줘. 기존 DORMS_CLIENT_ID와 DORMS_SITE_URL을 확인하고 고른 옵션으로 upgrade 해줘. 로그인 미설치 상태면 먼저 사이트 등록 안내를 하고 같은 옵션으로 init 해줘. 비밀키나 Dorms DB 권한은 요구하지 마.
 3. 덮어쓰지 말고 .dorms-login/review의 참고본과 차이를 읽어 내 수정 내용과 합쳐줘. 검증한 뒤에만 upgrade --accept-reviewed로 기록해줘.
 4. DormsDonationButton을 받는 선생님이 보이는 곳에 넣고 실제 도름스 회원 ID를 recipientId로 연결해줘. 받는 사람 이름과 보낼 수량을 명확하게 보여줘. 이메일로 계정을 합치지 마. 수량은 1~3도름이야.
@@ -56,7 +56,7 @@
 
 ```text
 이 앱에 dorms-login의 도름이 착장 불러오기를 붙여줘. 기존 도름스 로그인과 앱의 디자인, 직접 수정한 코드를 보존해줘.
-1. github.com/shinnanchanguk/dorms-login의 검증된 v0.6.0 릴리스를 사용해 detect로 환경을 확인하고, 기존 설치는 upgrade --doreumi, 새 설치는 init --doreumi 로 추가해줘. 사이트 id와 주소는 기존 DORMS_CLIENT_ID·DORMS_SITE_URL 값을 써. 덮어쓰지 말고 .dorms-login/review 의 차이를 내 수정과 합쳐줘.
+1. github.com/shinnanchanguk/dorms-login의 검증된 v0.7.0 릴리스를 사용해 detect로 환경을 확인하고, 기존 설치는 upgrade --doreumi, 새 설치는 init --doreumi 로 추가해줘. 사이트 id와 주소는 기존 DORMS_CLIENT_ID·DORMS_SITE_URL 값을 써. 덮어쓰지 말고 .dorms-login/review 의 차이를 내 수정과 합쳐줘.
 2. https://dorms.school/connect 에서 '도름이 착장도 받기'를 켰는지 나에게 확인해줘. doctor 가 꺼져 있다고 하면 켜도록 안내해줘. 이미 로그인해 있던 사람은 한 번 다시 로그인해야 착장이 와.
 3. 서버에서 getDormsDoreumi()로 착장을 불러와. null 이면 기본 도름이를 보여줘. 아이템 파일은 각 아이템의 asset 경로(/api/auth/dorms/doreumi/items/<id>)로 받고 도름스 토큰을 브라우저에 넘기지 마.
 4. docs/PROTOCOL.md 의 '도름이 착장' 절대로 기본 모형(model)에 아이템을 입혀줘. rigged 아이템은 뼈 이름으로 다시 묶고, 아닌 아이템은 bone 이름의 노드에 붙여. 색 세 곳도 반영해줘. 원하면 model 안의 동작이나 motions 목록의 동작을 AnimationMixer 로 재생해줘.
@@ -74,7 +74,7 @@
 <script src="https://dorms.school/embed/creator.js" defer></script>
 <dorms-creator ids="회원번호"></dorms-creator>
 2. 정보의 배치는 그대로 두고, 모양만 이 사이트 디자인에 맞춰줘. 글꼴과 글자색은 물려받고, 바탕·선·강조색·모서리는 --dorms-creator-surface, --dorms-creator-text, --dorms-creator-border, --dorms-creator-muted, --dorms-creator-accent, --dorms-creator-radius 로, 더 꾸밀 곳은 dorms-creator::part(chip|name|card|nickname|meta|bio|links|stats|actions|more 등)으로 꾸며줘.
-3. Next.js App Router 에 도름스 로그인을 이미 달았다면 github.com/shinnanchanguk/dorms-login 의 v0.6.0 릴리스로 upgrade --creator 를 실행해 DormsCreator 부품을 써도 돼. 기존 파일은 덮어쓰지 말고 .dorms-login/review 의 차이를 합쳐줘.
+3. Next.js App Router 에 도름스 로그인을 이미 달았다면 github.com/shinnanchanguk/dorms-login 의 v0.7.0 릴리스로 upgrade --creator 를 실행해 DormsCreator 부품을 써도 돼. 기존 파일은 덮어쓰지 말고 .dorms-login/review 의 차이를 합쳐줘.
 4. 콘텐츠 보안 정책(CSP)이 있으면 script-src·connect-src 에 https://dorms.school, img-src 에 https://dorms.school 과 https://*.supabase.co 를 더해줘.
 5. 칩을 눌러 정보 창이 화면 안에 뜨는지, '도름스에서 자세히 보기'가 새 탭으로 열리는지, 밝은·어두운 화면에서 글자가 잘 보이는지 확인해줘.
 ```

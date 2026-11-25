@@ -128,11 +128,17 @@ export async function assertDonationOrigin() {
   const local = process.env.NODE_ENV !== "production" && /^http:\/\/localhost(:\d+)?$/.test(origin ?? "");
   if ((!local && origin !== expected?.replace(/\/$/, "")) || !origin || (site && site !== "same-origin" && site !== "none")) throw new DormsDonationError("forbidden", 403);
 }
-export async function sendDonation(input: { recipientId: string; amount: number; requestId: string }): Promise<DonationResult> {
+/** Optional note shown with the gift in the recipient's DoRms messages (v0.7.0). DoRms accepts up to 300 characters. */
+export const DONATION_MESSAGE_MAX = 300;
+export async function sendDonation(input: { recipientId: string; amount: number; requestId: string; message?: string }): Promise<DonationResult> {
   await assertDonationOrigin();
   if (!UUID.test(input.recipientId) || !Number.isInteger(input.amount) || input.amount < 1 || input.amount > 3 || !UUID.test(input.requestId)) throw new DormsDonationError("invalid_request", 400);
+  const message = typeof input.message === "string" ? input.message.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/[\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, "").trim() : "";
+  if (input.message !== undefined && typeof input.message !== "string") throw new DormsDonationError("invalid_request", 400);
+  if (Array.from(message).length > DONATION_MESSAGE_MAX) throw new DormsDonationError("invalid_request", 400);
   const current = await credential();
-  const body = await request("send", { method: "POST", headers: { Authorization: `Bearer ${current.token}`, "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  const payload = { recipientId: input.recipientId, amount: input.amount, requestId: input.requestId, ...(message ? { message } : {}) };
+  const body = await request("send", { method: "POST", headers: { Authorization: `Bearer ${current.token}`, "Content-Type": "application/json" }, body: JSON.stringify(payload) });
   balances(body);
   if (typeof body.transferId !== "string" || !UUID.test(body.transferId) || body.amount !== input.amount) throw new DormsDonationError("temporarily_unavailable");
   return body as DonationResult;

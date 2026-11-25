@@ -117,10 +117,10 @@ No refresh-token, single-logout, token introspection or complete OIDC conformanc
 - `GET /api/connect/donations/authorize`: `client_id`, `redirect_uri`, `state`, `code_challenge`, `code_challenge_method=S256`, `session_expires_at`(현재 로그인 만료 epoch 초). Dorms 로그인 및 최초 동의 후 `code`, `state`를 되돌립니다. 등록된 사이트 origin의 `/api/auth/dorms/donation/callback`만 사용합니다.
 - `POST /api/connect/donations/token`: 현재 로그인 ID 토큰을 `Authorization: Bearer <id_token>` 헤더에 넣고 JSON `{client_id, redirect_uri, code, code_verifier}`. 응답 `{donation_token, expires_in, subject}`. 공급자는 로그인 토큰의 서명·발급자·대상 사이트·회원·동의 세대·만료를 검증하고 발급되는 도름네이션 토큰을 그 로그인 만료 이내, 최대 7일로 제한합니다. 브라우저가 주장한 `session_expires_at`만으로 수명을 늘릴 수 없습니다. 로그인 ID 토큰은 이 교환 요청에서만 쓰고 status/send/revoke에는 전용 도름네이션 토큰을 사용합니다.
 - `GET /api/connect/donations/status`: 전용 토큰의 Bearer 인증. 응답 `{subject, availableBalance, dailyRemaining, dailyRemainingTotal, resetsAt}`. `dailyRemaining`은 이번에 보낼 수 있는 최대(0~3), `dailyRemainingTotal`은 오늘 모든 연동 앱을 합쳐 남은 양(0~15, v0.6.0~)입니다. `resetsAt`은 ISO 8601 시각입니다.
-- `POST /api/connect/donations/send`: 동일 인증과 JSON `{recipientId, amount, requestId}`. 수량은 1~3 정수, 두 ID는 UUID입니다. 응답 `{transferId, amount, availableBalance, dailyRemaining, resetsAt}`는 DB 반영 후에만 반환됩니다.
+- `POST /api/connect/donations/send`: 동일 인증과 JSON `{recipientId, amount, requestId, message?}`. 수량은 1~3 정수, 두 ID는 UUID입니다. `message` 는 선택이며 300자까지(v0.7.0): 받는 선생님의 도름스 쪽지함에 보낸 선생님 닉네임으로 선물 쪽지가 가고 그 안에 실립니다. 쪽지 자체를 보낼지는 사이트 주인이 dorms.school/connect 의 '도름을 받은 선생님에게 쪽지로도 알리기'로 정합니다(기본 켬). 응답 `{transferId, amount, availableBalance, dailyRemaining, resetsAt}`는 DB 반영 후에만 반환됩니다.
 - `POST /api/connect/donations/revoke`: 동일 인증. 토큰 폐기 후 JSON 응답을 반환합니다.
 
-서버용 `getDonationStatus()`와 `sendDonation({recipientId, amount, requestId})`는 매번 현재 로그인 상태를 검사합니다. 전송 결과를 요청 사이에 캐시하지 않습니다. 공개 status/send 라우트에는 토큰이 포함되지 않습니다. 토큰은 host-only, HttpOnly, SameSite=Lax, 운영 Secure 쿠키에 넣고 현재 로그인 세션과 묶습니다. 로그아웃 시 Dorms의 토큰 폐기가 확인된 다음 쿠키를 지웁니다. 폐기 서버가 응답하지 않으면 로그아웃은 503으로 실패하므로 다시 시도해야 합니다.
+서버용 `getDonationStatus()`와 `sendDonation({recipientId, amount, requestId, message?})`는 매번 현재 로그인 상태를 검사합니다. 전송 결과를 요청 사이에 캐시하지 않습니다. 공개 status/send 라우트에는 토큰이 포함되지 않습니다. 토큰은 host-only, HttpOnly, SameSite=Lax, 운영 Secure 쿠키에 넣고 현재 로그인 세션과 묶습니다. 로그아웃 시 Dorms의 토큰 폐기가 확인된 다음 쿠키를 지웁니다. 폐기 서버가 응답하지 않으면 로그아웃은 503으로 실패하므로 다시 시도해야 합니다.
 
 브라우저에서 보내는 전송은 같은 origin의 JSON POST만 허용합니다. 사용자 정의 서버 액션에서도 Origin 검사를 유지하세요. 출처를 알 수 없는 요청, 비허용 origin, 다른 사이트 요청은 거절합니다. 런타임은 Node.js입니다.
 

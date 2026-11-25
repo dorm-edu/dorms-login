@@ -17,7 +17,15 @@ function button(mode = null) {
   function render(props = {}) {
     refIndex = 0;
     const tree = module.exports.DormsDonationButton({ recipientId: "recipient", amount: 1, onSuccess: (value) => state.successes.push(value), ...props });
-    return tree.props.children[0].props.onClick;
+    // v0.7.0: the button may sit under a note box; find it wherever it is.
+    const find = (node) => {
+      if (!node || typeof node !== "object") return null;
+      if (node.type === "button") return node;
+      const kids = [].concat(node.props?.children ?? []);
+      for (const k of kids) { const hit = find(k); if (hit) return hit; }
+      return null;
+    };
+    return find(tree).props.onClick;
   }
   return { state, click: render(), render };
 }
@@ -80,4 +88,16 @@ test("v0.5 at-login mode: the stock button never leaves the page when permission
   separate.state.fetch = async () => new Response(JSON.stringify({ reason: "consent_required" }), { status: 403 });
   await separate.click();
   assert.equal(separate.state.redirects.length, 1, "separate mode keeps the first-send permission trip");
+});
+
+test("v0.7 note box: the note travels with the request, and withMessage={false} renders only the button row", async () => {
+  const { state, render } = button();
+  const source2 = source;
+  assert.match(source2, /withMessage = true/);
+  // useState mock returns the initial value, so the note is "" here: no message key is sent.
+  const click = render();
+  await click();
+  assert.equal(JSON.parse(state.requests[0].init.body).message, undefined);
+  const plain = render({ withMessage: false });
+  assert.equal(typeof plain, "function");
 });
